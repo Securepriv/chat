@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF OCR - Extraction des 4 colonnes</title>
+    <title>PDF OCR - Extraction Facture Coolmark</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -16,13 +16,11 @@
 <body class="bg-gray-100 p-6">
 
 <div class="max-w-7xl mx-auto">
-    <!-- En-tête -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 PDF OCR - Extraction intelligente</h1>
-        <p class="text-gray-600">Extraction de : <span class="font-semibold text-blue-600">Artikel</span> | <span class="font-semibold text-green-600">Omschrijving</span> | <span class="font-semibold text-orange-600">Aantal</span> | <span class="font-semibold text-purple-600">Totaal</span></p>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 PDF OCR - Extraction Facture</h1>
+        <p class="text-gray-600">Extraction de : <span class="font-semibold text-blue-600">Artikelnummer</span> | <span class="font-semibold text-green-600">Omschrijving</span> | <span class="font-semibold text-orange-600">Aantal</span> | <span class="font-semibold text-purple-600">Totaal</span></p>
     </div>
 
-    <!-- Upload -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-6">
         <div id="uploadZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition">
             <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden" />
@@ -30,11 +28,9 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
             <p class="mt-2 text-gray-600">📎 Cliquez ou glissez un fichier (PDF ou image)</p>
-            <p class="text-xs text-gray-400 mt-1">Le texte sera extrait par OCR - Patientez 10-20 secondes</p>
         </div>
         <div id="status" class="mt-4 text-sm text-gray-500 hidden"></div>
         
-        <!-- Debug: voir le texte brut OCR -->
         <div class="mt-4">
             <button id="toggleRawText" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">🔍 Afficher le texte OCR brut</button>
             <div id="rawTextContainer" class="hidden mt-3 p-3 bg-gray-100 rounded-lg max-h-96 overflow-auto">
@@ -43,7 +39,6 @@
         </div>
     </div>
 
-    <!-- Résultats -->
     <div class="bg-white rounded-xl shadow-md overflow-hidden">
         <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center">
             <div>
@@ -59,15 +54,15 @@
             <table id="dataTable" class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikel nr.</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikelnummer</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Totaal</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Totaal (€)</th>
                         <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="divide-y divide-gray-200 bg-white">
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">En attente d'un fichier...</td><tr>
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">En attente d'un fichier...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -82,16 +77,8 @@
     let extractedData = [];
     let rawOcrText = "";
 
-    const fileInput = document.getElementById('fileInput');
-    const uploadZone = document.getElementById('uploadZone');
-    const tableBody = document.getElementById('tableBody');
-    const statusDiv = document.getElementById('status');
-    const toast = document.getElementById('toast');
-    const toggleRawText = document.getElementById('toggleRawText');
-    const rawTextContainer = document.getElementById('rawTextContainer');
-    const rawTextContent = document.getElementById('rawTextContent');
-
     function showToast(message, isError = false) {
+        const toast = document.getElementById('toast');
         toast.textContent = message;
         toast.classList.remove('hidden', 'bg-gray-900', 'bg-red-600');
         toast.classList.add(isError ? 'bg-red-600' : 'bg-gray-900');
@@ -107,88 +94,91 @@
         }
     }
 
-    // NOUVELLE VERSION : Extraction plus robuste basée sur les patterns réels
-    function extractColumnsRobust(ocrText) {
+    // Extraction spécifique pour le format Coolmark
+    function extractFromCoolmarkInvoice(ocrText) {
         const lines = ocrText.split(/\r?\n/);
         const results = [];
         
-        // Patterns pour reconnaître les lignes de données
-        // Exemple typique: "20033881000    HWA PVC Buis 70x1,5mm LG=4 (grijs, KOMO)    0,20    23,32    65,0%    1,63"
+        // Pattern pour une ligne de produit Coolmark
+        // Exemple: "1,00 7205131 Aircool Filter t.b.v. ENY-6 21-05-2026 2,00 PCE 119,00 68,00 76,16"
+        // Structure: [volgorde?] [artikelnummer] [description...] [datum] [aantal] [eenheid] [prijs] [korting%] [totaal]
         
         for (let line of lines) {
             line = line.trim();
-            if (line.length < 10) continue;
+            if (line.length < 20) continue;
             
-            // Ignorer les en-têtes
-            if (/artikel|omschrijving|aantal|totaal|afleveradres|subtotaal/i.test(line)) continue;
-            if (/^-+$/.test(line)) continue;
+            // Ignorer les lignes qui ne contiennent pas de données produit
+            if (line.includes('Afleveradres') || line.includes('Factuuradres') || 
+                line.includes('Totaalbedrag') || line.includes('Netto totaalbedrag') ||
+                line.includes('COOLMARK') || line.includes('Verkoop binnenland') ||
+                line.includes('HS-code') || line.includes('BTW') ||
+                line.match(/^[A-Z]/) && !line.match(/\d/)) continue;
             
-            // Pattern 1: Ligne qui commence par un nombre (code artikel)
-            const matchStartNumber = line.match(/^(\d+[\s]+)/);
-            if (!matchStartNumber) continue;
+            // Chercher un nombre à 7 chiffres (artikelnummer comme 7205131)
+            const artikelMatch = line.match(/\b(\d{7})\b/);
+            if (!artikelMatch) continue;
             
-            // Trouver les nombres décimaux dans la ligne
-            const decimals = line.match(/\d+[\.,]\d{2}/g);
-            if (!decimals || decimals.length < 2) continue;
+            const artikel = artikelMatch[1];
             
-            // Extraire le code artikel (premier mot/numéro)
-            const parts = line.split(/\s+/);
-            let artikel = parts[0];
+            // Chercher la quantité (généralement un nombre avec virgule suivi de PCE/STUKS)
+            const qtyMatch = line.match(/(\d+[\.,]\d{2})\s*(?:PCE|STUKS|stuks?)/i);
+            if (!qtyMatch) continue;
             
-            // Trouver où sont les quantités et totaux
-            let qtyValue = null;
-            let totalValue = null;
+            const aantal = qtyMatch[1].replace(',', '.');
             
-            // Parcourir les nombres décimaux trouvés
-            for (let i = 0; i < decimals.length; i++) {
-                const num = decimals[i].replace(',', '.');
-                if (qtyValue === null && parseFloat(num) < 1000) {
-                    qtyValue = num;
-                } else if (totalValue === null && parseFloat(num) < 10000) {
-                    totalValue = num;
+            // Chercher le total à la fin de la ligne (dernier nombre décimal)
+            const allDecimals = line.match(/\d+[\.,]\d{2}/g);
+            if (!allDecimals || allDecimals.length < 2) continue;
+            
+            // Le total est généralement le dernier nombre décimal
+            let totaal = allDecimals[allDecimals.length - 1].replace(',', '.');
+            
+            // Extraire la description (tout entre artikel et quantité)
+            const artikelPos = line.indexOf(artikel);
+            const qtyPos = line.indexOf(qtyMatch[0]);
+            
+            let description = "";
+            if (artikelPos !== -1 && qtyPos !== -1 && qtyPos > artikelPos) {
+                description = line.substring(artikelPos + artikel.length, qtyPos).trim();
+                // Nettoyer la description des dates et autres éléments
+                description = description.replace(/\d{2}-\d{2}-\d{4}/g, '').trim();
+                description = description.replace(/\s+/g, ' ').trim();
+            } else {
+                // Fallback: prendre tout après artikel jusqu'au prochain nombre
+                const afterArtikel = line.substring(artikelPos + artikel.length);
+                const parts = afterArtikel.split(/\s+/);
+                const descParts = [];
+                for (let part of parts) {
+                    if (part.match(/^\d+[\.,]\d{2}$/) || part.match(/^\d{2}-\d{2}-\d{4}$/) || part === 'PCE' || part === 'STUKS') {
+                        break;
+                    }
+                    descParts.push(part);
                 }
+                description = descParts.join(' ');
             }
             
-            if (qtyValue && totalValue) {
-                // La description est tout ce qui se trouve entre artikel et la quantité
-                const qtyIndex = line.indexOf(decimals.find(d => d.replace(',', '.') === qtyValue));
-                let description = line.substring(artikel.length, qtyIndex).trim();
-                // Nettoyer la description
-                description = description.replace(/\s+/g, ' ').trim();
-                
+            if (artikel && description && aantal && totaal) {
                 results.push({
                     artikel: artikel,
                     omschrijving: description,
-                    aantal: qtyValue,
-                    totaal: totalValue
+                    aantal: aantal,
+                    totaal: totaal
                 });
             }
         }
         
-        // Supprimer les doublons
-        const unique = [];
-        const seen = new Set();
-        for (let row of results) {
-            const key = `${row.artikel}|${row.omschrijving}`;
-            if (!seen.has(key) && row.artikel && row.omschrijving) {
-                seen.add(key);
-                unique.push(row);
-            }
-        }
-        
-        return unique;
+        return results;
     }
-    
-    // Fonction alternative : extraction par expression régulière directe
-    function extractByRegex(ocrText) {
+
+    // Deuxième méthode de secours
+    function extractFallback(ocrText) {
         const results = [];
         
-        // Pattern pour capturer une ligne complète de données
-        // Format: code + texte + nombre + pourcentage? + nombre
-        const linePattern = /^(\d+)\s+([A-Za-z0-9\s\(\)\-,]+?)\s+(\d+[\.,]\d{2})\s+\d+[\.,]\d{2}\s+(?:\d+[\.,]\d{2}%\s+)?(\d+[\.,]\d{2})/gm;
+        // Pattern regex plus flexible
+        const pattern = /(\d{7})\s+([A-Za-z0-9\s\.\-\(\)]+?)\s+\d{2}-\d{2}-\d{4}\s+(\d+[\.,]\d{2})\s+PCE\s+\d+[\.,]\d{2}\s+\d+[\.,]\d{2}\s+(\d+[\.,]\d{2})/gi;
         
         let match;
-        while ((match = linePattern.exec(ocrText)) !== null) {
+        while ((match = pattern.exec(ocrText)) !== null) {
             results.push({
                 artikel: match[1],
                 omschrijving: match[2].trim(),
@@ -207,8 +197,7 @@
                 'nld',
                 {
                     logger: m => console.log(m),
-                    tessedit_pageseg_mode: 6,
-                    tessedit_char_whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.,()/%- '
+                    tessedit_pageseg_mode: 6
                 }
             ).then(({ data: { text } }) => resolve(text)).catch(reject);
         });
@@ -218,23 +207,23 @@
         const rowCountSpan = document.getElementById('rowCount');
         
         if (!extractedData.length) {
-            tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">❌ Aucune donnée extraite</td></tr>`;
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">❌ Aucune donnée extraite</td></tr>`;
             rowCountSpan.textContent = `0 ligne(s)`;
             return;
         }
 
         rowCountSpan.textContent = `${extractedData.length} ligne(s)`;
-        tableBody.innerHTML = '';
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
         
         extractedData.forEach((row, idx) => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-gray-50';
-            
             tr.innerHTML = `
-                <td class="px-4 py-3 text-sm text-gray-900 font-mono">${escapeHtml(row.artikel || '-')}</td>
-                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(row.omschrijving || '-')}</td>
-                <td class="px-4 py-3 text-sm text-gray-900">${escapeHtml(row.aantal || '-')}</td>
-                <td class="px-4 py-3 text-sm text-gray-900">${escapeHtml(row.totaal || '-')}</td>
+                <td class="px-4 py-3 text-sm text-gray-900 font-mono">${escapeHtml(row.artikel)}</td>
+                <td class="px-4 py-3 text-sm text-gray-700">${escapeHtml(row.omschrijving)}</td>
+                <td class="px-4 py-3 text-sm text-gray-900">${escapeHtml(row.aantal)}</td>
+                <td class="px-4 py-3 text-sm text-gray-900 font-mono">€ ${escapeHtml(row.totaal)}</td>
                 <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex gap-2">
                         <button class="copy-artikel bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Art.</button>
@@ -244,10 +233,9 @@
                     </div>
                 </td>
             `;
-            tableBody.appendChild(tr);
+            tbody.appendChild(tr);
         });
 
-        // Attacher événements
         document.querySelectorAll('.copy-artikel').forEach(btn => {
             btn.addEventListener('click', () => copyToClipboard(extractedData[btn.dataset.idx].artikel, 'Artikel'));
         });
@@ -281,9 +269,9 @@
             return;
         }
         
+        const statusDiv = document.getElementById('status');
         statusDiv.classList.remove('hidden');
-        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Conversion en images...</span>';
-        tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">⏳ Traitement en cours...</td></tr>`;
+        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Traitement en cours...</span>';
         
         try {
             let imagesDataUrls = [];
@@ -301,7 +289,7 @@
                 const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
                 const pdf = await loadingTask.promise;
                 const numPages = pdf.numPages;
-                const maxPages = Math.min(numPages, 5);
+                const maxPages = Math.min(numPages, 3);
                 
                 for (let i = 1; i <= maxPages; i++) {
                     statusDiv.innerHTML = `<span class="text-blue-600">📄 Page ${i}/${maxPages}...</span>`;
@@ -316,7 +304,6 @@
                 }
             }
             
-            // OCR
             let fullText = '';
             for (let i = 0; i < imagesDataUrls.length; i++) {
                 statusDiv.innerHTML = `<span class="text-blue-600">🔍 OCR page ${i+1}/${imagesDataUrls.length}...</span>`;
@@ -325,47 +312,44 @@
             }
             
             rawOcrText = fullText;
-            rawTextContent.textContent = rawOcrText;
+            document.getElementById('rawTextContent').textContent = rawOcrText;
             
-            // Essayer les deux méthodes d'extraction
-            let results = extractColumnsRobust(fullText);
+            let results = extractFromCoolmarkInvoice(fullText);
             
             if (results.length === 0) {
-                results = extractByRegex(fullText);
+                results = extractFallback(fullText);
             }
             
             extractedData = results;
             
             if (extractedData.length === 0) {
-                tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">
+                document.getElementById('tableBody').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">
                     ❌ Aucune donnée trouvée.<br>
                     <span class="text-xs">Cliquez sur "Afficher le texte OCR brut" pour voir ce qui a été extrait.</span>
                 </td></tr>`;
-                statusDiv.innerHTML = '<span class="text-red-600">⚠️ Aucune donnée extraite - Vérifiez le texte OCR brut</span>';
+                statusDiv.innerHTML = '<span class="text-red-600">⚠️ Aucune donnée extraite</span>';
             } else {
                 renderTable();
-                statusDiv.innerHTML = `<span class="text-green-600">✅ ${extractedData.length} lignes extraites !</span>`;
+                statusDiv.innerHTML = `<span class="text-green-600">✅ ${extractedData.length} ligne(s) extraite(s) !</span>`;
                 showToast(`✅ ${extractedData.length} lignes extraites`);
             }
             
-            setTimeout(() => statusDiv.classList.add('hidden'), 4000);
+            setTimeout(() => statusDiv.classList.add('hidden'), 3000);
             
         } catch (err) {
             console.error(err);
-            tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">❌ Erreur: ${err.message}</td></tr>`;
-            statusDiv.innerHTML = `<span class="text-red-600">❌ Erreur</span>`;
+            document.getElementById('tableBody').innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">❌ Erreur: ${err.message}</td></tr>`;
             showToast("Erreur OCR", true);
         }
     }
     
-    // Export CSV
     document.getElementById('exportAllBtn').addEventListener('click', () => {
         if (!extractedData.length) {
             showToast("Aucune donnée à exporter", true);
             return;
         }
         
-        let csvContent = "\uFEFFArtikel nr.;Omschrijving;Aantal;Totaal\n";
+        let csvContent = "\uFEFFArtikelnummer;Omschrijving;Aantal;Totaal (€)\n";
         extractedData.forEach(row => {
             csvContent += `"${(row.artikel || '').replace(/"/g, '""')}";"${(row.omschrijving || '').replace(/"/g, '""')}";"${row.aantal || ''}";"${row.totaal || ''}"\n`;
         });
@@ -374,7 +358,7 @@
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.href = url;
-        link.setAttribute('download', 'extracted_data.csv');
+        link.setAttribute('download', 'factuur_data.csv');
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -382,27 +366,27 @@
         showToast("CSV exporté");
     });
     
+    const toggleRawText = document.getElementById('toggleRawText');
+    const rawTextContainer = document.getElementById('rawTextContainer');
     toggleRawText.addEventListener('click', () => {
         rawTextContainer.classList.toggle('hidden');
-        if (!rawTextContainer.classList.contains('hidden') && rawOcrText) {
-            rawTextContent.textContent = rawOcrText;
-        }
     });
     
-    // Événements upload
-    uploadZone.addEventListener('click', () => fileInput.click());
-    uploadZone.addEventListener('dragover', (e) => {
+    document.getElementById('uploadZone').addEventListener('click', () => document.getElementById('fileInput').click());
+    document.getElementById('uploadZone').addEventListener('dragover', (e) => {
         e.preventDefault();
-        uploadZone.classList.add('bg-blue-50');
+        e.currentTarget.classList.add('bg-blue-50');
     });
-    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('bg-blue-50'));
-    uploadZone.addEventListener('drop', (e) => {
+    document.getElementById('uploadZone').addEventListener('dragleave', (e) => {
+        e.currentTarget.classList.remove('bg-blue-50');
+    });
+    document.getElementById('uploadZone').addEventListener('drop', (e) => {
         e.preventDefault();
-        uploadZone.classList.remove('bg-blue-50');
+        e.currentTarget.classList.remove('bg-blue-50');
         const file = e.dataTransfer.files[0];
         if (file) processFile(file);
     });
-    fileInput.addEventListener('change', (e) => {
+    document.getElementById('fileInput').addEventListener('change', (e) => {
         if (e.target.files[0]) processFile(e.target.files[0]);
     });
 </script>
