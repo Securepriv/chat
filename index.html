@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF OCR - Extraire Artikel, Description, Aantal, Totaal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <style>
+        .copy-btn { transition: all 0.2s; }
+        .copy-btn:active { transform: scale(0.95); }
+        .value-cell { font-family: 'Courier New', monospace; }
+    </style>
+</head>
+<body class="bg-gray-100 p-6">
+
+<div class="max-w-7xl mx-auto">
+    <!-- En-tête -->
+    <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 OCR PDF → Extraire les 4 colonnes clés</h1>
+        <p class="text-gray-600">Extraction automatique de : <span class="font-semibold text-blue-600">Artikel nr.</span> | <span class="font-semibold text-green-600">Omschrijving</span> | <span class="font-semibold text-orange-600">Aantal</span> | <span class="font-semibold text-purple-600">Totaal</span></p>
+    </div>
+
+    <!-- Zone upload -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+        <div id="uploadZone" class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:bg-gray-50 transition">
+            <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden" />
+            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+            </svg>
+            <p class="mt-2 text-gray-600">📎 Cliquez ou glissez un fichier (PDF ou image)</p>
+            <p class="text-xs text-gray-400 mt-1">Le texte sera extrait automatiquement par OCR</p>
+        </div>
+
+        <!-- Statut -->
+        <div id="status" class="mt-4 text-sm text-gray-500 hidden"></div>
+    </div>
+
+    <!-- Résultats extraits -->
+    <div class="bg-white rounded-xl shadow-md overflow-hidden">
+        <div class="bg-gray-50 px-6 py-3 border-b">
+            <h2 class="font-semibold text-gray-700">📋 Données extraites</h2>
+            <p class="text-xs text-gray-500">Cliquez sur un bouton "Copier" pour récupérer la valeur</p>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table id="dataTable" class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikel nr.</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving (Description)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal (Quantité)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Totaal (Total)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-200 bg-white">
+                    <tr>
+                        <td colspan="5" class="px-4 py-8 text-center text-gray-400">
+                            ⏳ En attente d'un fichier...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Bouton export global -->
+    <div class="mt-6 flex gap-3 justify-end">
+        <button id="exportAllBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow text-sm">
+            📥 Exporter tout en CSV
+        </button>
+    </div>
+</div>
+
+<!-- Toast notification -->
+<div id="toast" class="fixed bottom-5 right-5 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg hidden transition-all z-50"></div>
+
+<script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+    // Stockage des données extraites
+    let extractedData = []; // Chaque élément : { artikel, omschrijving, aantal, totaal }
+
+    const fileInput = document.getElementById('fileInput');
+    const uploadZone = document.getElementById('uploadZone');
+    const tableBody = document.getElementById('tableBody');
+    const statusDiv = document.getElementById('status');
+    const toast = document.getElementById('toast');
+
+    function showToast(message, isError = false) {
+        toast.textContent = message;
+        toast.classList.remove('hidden', 'bg-gray-900', 'bg-red-600');
+        toast.classList.add(isError ? 'bg-red-600' : 'bg-gray-900');
+        setTimeout(() => toast.classList.add('hidden'), 2000);
+    }
+
+    async function copyToClipboard(text, label) {
+        try {
+            await navigator.clipboard.writeText(text);
+            showToast(`✅ ${label} copié : ${text.substring(0, 50)}${text.length > 50 ? '...' : ''}`);
+        } catch (err) {
+            showToast(`❌ Erreur copie : ${err}`, true);
+        }
+    }
+
+    // Afficher les données dans le tableau
+    function renderTable() {
+        if (!extractedData.length) {
+            tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Aucune donnée extraite. Chargez un fichier PDF/image.</td></tr>`;
+            return;
+        }
+
+        tableBody.innerHTML = '';
+        extractedData.forEach((row, idx) => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50';
+
+            // Artikel
+            const tdArtikel = document.createElement('td');
+            tdArtikel.className = 'px-4 py-3 text-sm text-gray-900 font-mono';
+            tdArtikel.textContent = row.artikel || '-';
+            tr.appendChild(tdArtikel);
+
+            // Omschrijving
+            const tdDesc = document.createElement('td');
+            tdDesc.className = 'px-4 py-3 text-sm text-gray-700';
+            tdDesc.textContent = row.omschrijving || '-';
+            tr.appendChild(tdDesc);
+
+            // Aantal
+            const tdQty = document.createElement('td');
+            tdQty.className = 'px-4 py-3 text-sm text-gray-900';
+            tdQty.textContent = row.aantal || '-';
+            tr.appendChild(tdQty);
+
+            // Totaal
+            const tdTotal = document.createElement('td');
+            tdTotal.className = 'px-4 py-3 text-sm text-gray-900';
+            tdTotal.textContent = row.totaal || '-';
+            tr.appendChild(tdTotal);
+
+            // Actions
+            const tdActions = document.createElement('td');
+            tdActions.className = 'px-4 py-3 whitespace-nowrap';
+            tdActions.innerHTML = `
+                <div class="flex gap-2">
+                    <button class="copy-artikel bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Art.</button>
+                    <button class="copy-desc bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Desc.</button>
+                    <button class="copy-qty bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Aantal</button>
+                    <button class="copy-total bg-purple-500 hover:bg-purple-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Totaal</button>
+                </div>
+            `;
+            tr.appendChild(tdActions);
+            tableBody.appendChild(tr);
+        });
+
+        // Attacher les événements aux boutons
+        document.querySelectorAll('.copy-artikel').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.idx);
+                copyToClipboard(extractedData[idx].artikel, 'Artikel');
+            });
+        });
+        document.querySelectorAll('.copy-desc').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.idx);
+                copyToClipboard(extractedData[idx].omschrijving, 'Description');
+            });
+        });
+        document.querySelectorAll('.copy-qty').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.idx);
+                copyToClipboard(extractedData[idx].aantal, 'Quantité');
+            });
+        });
+        document.querySelectorAll('.copy-total').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.idx);
+                copyToClipboard(extractedData[idx].totaal, 'Total');
+            });
+        });
+    }
+
+    // Extraire intelligemment les 4 colonnes depuis le texte OCR
+    function extractColumnsFromOcr(ocrText) {
+        const lines = ocrText.split(/\r?\n/);
+        const results = [];
+
+        // Patterns pour détecter les lignes de données (basé sur votre structure)
+        // Exemple: "20033881000    HWA PVC Buis 70x1,5mm LG=4 (grijs, KOMO)    0,20    23,32    65,0%    1,63"
+        // On cherche: [code] [description] [aantal] [prijs] [kort] [totaal]
+        
+        for (let line of lines) {
+            line = line.trim();
+            if (line.length === 0) continue;
+            
+            // Éviter les en-têtes et lignes de total
+            if (line.toLowerCase().includes('artikel') && line.toLowerCase().includes('omschrijving')) continue;
+            if (line.toLowerCase().includes('afleveradres')) continue;
+            if (line.match(/^Totaal:|^Subtotaal:/i)) continue;
+            
+            // Découper par espaces multiples ou tabulations
+            let parts = line.split(/\s{2,}|\t/);
+            parts = parts.map(p => p.trim()).filter(p => p.length > 0);
+            
+            if (parts.length >= 4) {
+                // Structure typique: [artikel_nr, description, aantal, ...? , totaal]
+                // La description peut contenir des espaces, donc on doit identifier le nombre et le total
+                
+                let artikel = parts[0];
+                // Chercher la quantité (généralement un nombre avec virgule ou point)
+                let qtyIndex = -1;
+                let totalIndex = -1;
+                
+                for (let i = 1; i < parts.length; i++) {
+                    // Détecter une quantité (ex: 0,20 ou 24,00 ou 1,00)
+                    if (/^\d+[\.,]\d{2}$/.test(parts[i]) && qtyIndex === -1) {
+                        qtyIndex = i;
+                    }
+                    // Détecter un total (souvent après le pourcentage ou à la fin)
+                    if (/^\d+[\.,]\d{2}$/.test(parts[i]) && parts[i] !== parts[qtyIndex]) {
+                        totalIndex = i;
+                    }
+                }
+                
+                // Si on a trouvé quantité et total
+                if (qtyIndex !== -1 && totalIndex !== -1) {
+                    // Description = tout entre artikel et quantité
+                    let description = parts.slice(1, qtyIndex).join(' ');
+                    let aantal = parts[qtyIndex].replace(',', '.');
+                    let totaal = parts[totalIndex].replace(',', '.');
+                    
+                    results.push({
+                        artikel: artikel,
+                        omschrijving: description,
+                        aantal: aantal,
+                        totaal: totaal
+                    });
+                } 
+                else if (parts.length >= 6) {
+                    // Fallback: la structure pourrait être [art, desc1, desc2, aantal, prix, kort%, totaal]
+                    let artikel = parts[0];
+                    let description = parts.slice(1, -3).join(' ');
+                    let aantal = parts[parts.length - 3].replace(',', '.');
+                    let totaal = parts[parts.length - 1].replace(',', '.');
+                    
+                    results.push({
+                        artikel: artikel,
+                        omschrijving: description,
+                        aantal: aantal,
+                        totaal: totaal
+                    });
+                }
+            }
+        }
+        
+        // Nettoyer les doublons potentiels (même artikel et description)
+        const uniqueResults = [];
+        const seen = new Set();
+        for (let row of results) {
+            const key = `${row.artikel}|${row.omschrijving}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueResults.push(row);
+            }
+        }
+        
+        return uniqueResults;
+    }
+
+    // OCR sur image
+    async function runOcrOnImage(imageDataUrl) {
+        return new Promise((resolve, reject) => {
+            Tesseract.recognize(
+                imageDataUrl,
+                'nld',
+                {
+                    logger: m => console.log(m),
+                    tessedit_pageseg_mode: 6
+                }
+            ).then(({ data: { text } }) => resolve(text)).catch(reject);
+        });
+    }
+
+    // Traitement principal
+    async function processFile(file) {
+        const isPdf = file.type === 'application/pdf';
+        const isImage = file.type.startsWith('image/');
+        
+        if (!isPdf && !isImage) {
+            showToast("Format non supporté. Utilisez PDF ou image.", true);
+            return;
+        }
+        
+        statusDiv.classList.remove('hidden');
+        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Traitement en cours... (l\'OCR peut prendre 10-20 secondes)</span>';
+        
+        tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">⏳ OCR en cours, veuillez patienter...</td></tr>`;
+        
+        try {
+            let imagesDataUrls = [];
+            
+            if (isImage) {
+                const reader = new FileReader();
+                const dataUrl = await new Promise((resolve) => {
+                    reader.onload = e => resolve(e.target.result);
+                    reader.readAsDataURL(file);
+                });
+                imagesDataUrls.push(dataUrl);
+            } 
+            else if (isPdf) {
+                const arrayBuffer = await file.arrayBuffer();
+                const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+                const pdf = await loadingTask.promise;
+                const numPages = pdf.numPages;
+                const maxPages = Math.min(numPages, 5); // Max 5 pages
+                
+                for (let i = 1; i <= maxPages; i++) {
+                    statusDiv.innerHTML = `<span class="text-blue-600">📄 Traitement page ${i}/${maxPages}...</span>`;
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 2.0 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    imagesDataUrls.push(canvas.toDataURL());
+                }
+            }
+            
+            // OCR sur toutes les images
+            let fullText = '';
+            for (let i = 0; i < imagesDataUrls.length; i++) {
+                statusDiv.innerHTML = `<span class="text-blue-600">🔍 OCR page ${i+1}/${imagesDataUrls.length}...</span>`;
+                const ocrText = await runOcrOnImage(imagesDataUrls[i]);
+                fullText += ocrText + '\n';
+            }
+            
+            // Extraire les 4 colonnes
+            extractedData = extractColumnsFromOcr(fullText);
+            
+            if (extractedData.length === 0) {
+                tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">❌ Aucune donnée trouvée. Vérifiez la qualité du PDF.</td></tr>`;
+                statusDiv.innerHTML = '<span class="text-red-600">⚠️ Aucune ligne de données extraite</span>';
+            } else {
+                renderTable();
+                statusDiv.innerHTML = `<span class="text-green-600">✅ Extraction terminée : ${extractedData.length} lignes de données récupérées</span>`;
+                showToast(`✅ ${extractedData.length} lignes extraites avec succès`);
+            }
+            
+            setTimeout(() => statusDiv.classList.add('hidden'), 3000);
+            
+        } catch (err) {
+            console.error(err);
+            tableBody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">❌ Erreur : ${err.message}</td></tr>`;
+            statusDiv.innerHTML = `<span class="text-red-600">❌ Erreur lors du traitement</span>`;
+            showToast("Erreur OCR", true);
+        }
+    }
+    
+    // Export CSV
+    document.getElementById('exportAllBtn').addEventListener('click', () => {
+        if (!extractedData.length) {
+            showToast("Aucune donnée à exporter", true);
+            return;
+        }
+        
+        let csvContent = "\uFEFFArtikel nr.;Omschrijving;Aantal;Totaal\n";
+        extractedData.forEach(row => {
+            const line = `"${row.artikel.replace(/"/g, '""')}";"${row.omschrijving.replace(/"/g, '""')}";"${row.aantal}";"${row.totaal}"`;
+            csvContent += line + "\n";
+        });
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.href = url;
+        link.setAttribute('download', 'extracted_data.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        showToast("Export CSV effectué");
+    });
+    
+    // Événements UI
+    uploadZone.addEventListener('click', () => fileInput.click());
+    uploadZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadZone.classList.add('bg-blue-50');
+    });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('bg-blue-50'));
+    uploadZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadZone.classList.remove('bg-blue-50');
+        const file = e.dataTransfer.files[0];
+        if (file) processFile(file);
+    });
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files[0]) processFile(e.target.files[0]);
+    });
+</script>
+</body>
+</html>
