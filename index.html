@@ -11,12 +11,17 @@
         .copy-btn { transition: all 0.2s; cursor: pointer; }
         .copy-btn:active { transform: scale(0.95); }
         .raw-text { font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
-        .selected-row { background-color: #dbeafe !important; }
+        .col-artikel { background-color: #dbeafe !important; }
+        .col-omschrijving { background-color: #dcfce7 !important; }
+        .col-aantal { background-color: #fed7aa !important; }
+        .col-totaal { background-color: #e9d5ff !important; }
+        .mapping-active { background-color: #fef08a !important; }
     </style>
 </head>
 <body class="bg-gray-100 p-6">
 
 <div class="max-w-7xl mx-auto">
+    <!-- En-tête -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
         <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 OCR Extracteur Universel</h1>
         <p class="text-gray-600">Extrait <span class="font-semibold text-blue-600">Artikel</span> | <span class="font-semibold text-green-600">Omschrijving</span> | <span class="font-semibold text-orange-600">Aantal</span> | <span class="font-semibold text-purple-600">Totaal</span> de n'importe quelle facture</p>
@@ -29,57 +34,97 @@
             <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
-            <p class="mt-2 text-gray-600">📎 PDF ou Image (scanner/facture)</p>
+            <p class="mt-2 text-gray-600">📎 Cliquez ou glissez un fichier (PDF ou image scannée)</p>
         </div>
         <div id="status" class="mt-4 text-sm text-gray-500 hidden"></div>
         
-        <div class="mt-4 flex gap-2">
-            <button id="toggleRawText" class="text-xs bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded">🔍 Texte OCR brut</button>
-            <button id="autoDetectBtn" class="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded">🤖 Détection automatique</button>
+        <!-- Boutons toujours visibles -->
+        <div class="mt-4 flex flex-wrap gap-2">
+            <button id="toggleRawText" class="bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded text-sm">🔍 Afficher texte OCR brut</button>
+            <button id="autoDetectBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm">🤖 Détection automatique</button>
         </div>
         <div id="rawTextContainer" class="hidden mt-3 p-3 bg-gray-100 rounded-lg max-h-64 overflow-auto">
             <pre id="rawTextContent" class="raw-text text-xs"></pre>
         </div>
     </div>
 
-    <!-- Configuration manuelle -->
-    <div id="configPanel" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
+    <!-- Panneau de mapping manuel (TOUJOURS VISIBLE) -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
         <h3 class="font-semibold text-gray-700 mb-3">⚙️ Configuration manuelle</h3>
-        <p class="text-sm text-gray-500 mb-3">Cliquez sur une cellule pour indiquer quelle colonne contient quoi :</p>
-        <div class="flex gap-4 flex-wrap mb-4">
-            <button id="mapArtikelBtn" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">📌 Définir colonne ARTIKEL</button>
-            <button id="mapDescBtn" class="bg-green-500 text-white px-3 py-1 rounded text-sm">📌 Définir colonne OMSCHRIJVING</button>
-            <button id="MapQtyBtn" class="bg-orange-500 text-white px-3 py-1 rounded text-sm">📌 Définir colonne AANTAL</button>
-            <button id="mapTotalBtn" class="bg-purple-500 text-white px-3 py-1 rounded text-sm">📌 Définir colonne TOTAAL</button>
-            <button id="clearMappingBtn" class="bg-gray-500 text-white px-3 py-1 rounded text-sm">🗑️ Effacer mapping</button>
+        <p class="text-sm text-gray-500 mb-3">1️⃣ Cliquez sur un bouton ci-dessous  |  2️⃣ Cliquez sur la colonne correspondante dans le tableau</p>
+        
+        <div class="flex flex-wrap gap-3 mb-4">
+            <button id="mapArtikelBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
+                📌 Définir colonne ARTIKEL
+            </button>
+            <button id="mapDescBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
+                📌 Définir colonne OMSCHRIJVING
+            </button>
+            <button id="mapQtyBtn" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
+                📌 Définir colonne AANTAL
+            </button>
+            <button id="mapTotalBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
+                📌 Définir colonne TOTAAL
+            </button>
+            <button id="clearMappingBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
+                🗑️ Effacer tout
+            </button>
         </div>
-        <div id="mappingStatus" class="text-sm text-gray-600"></div>
+        
+        <div id="mappingStatus" class="p-3 bg-gray-50 rounded-lg text-sm">
+            ⏳ Chargez un fichier pour commencer
+        </div>
+        <div id="mappingInstruction" class="text-xs text-gray-400 mt-2 hidden">
+            🟡 En attente d'un clic sur une colonne...
+        </div>
     </div>
 
-    <!-- Résultats -->
+    <!-- Tableau brut avec toutes les colonnes -->
+    <div class="bg-white rounded-xl shadow-md overflow-hidden mb-6">
+        <div class="bg-gray-50 px-6 py-3 border-b">
+            <h2 class="font-semibold text-gray-700">📊 Données brutes (toutes les colonnes)</h2>
+            <p class="text-xs text-gray-500">Cliquez sur les en-têtes pour définir le mapping</p>
+        </div>
+        <div class="overflow-x-auto max-h-96 overflow-auto">
+            <table id="dataTable" class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead id="tableHeader" class="bg-gray-50 sticky top-0">
+                    <tr><th class="px-4 py-2 text-left text-xs font-medium text-gray-500">Chargez un fichier...</th></tr>
+                </thead>
+                <tbody id="tableBody" class="divide-y divide-gray-200 bg-white">
+                    <tr><td class="px-4 py-8 text-center text-gray-400">En attente d'un fichier PDF/image</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Résultats extraits (les 4 colonnes) -->
     <div class="bg-white rounded-xl shadow-md overflow-hidden">
         <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center flex-wrap gap-2">
             <div>
-                <h2 class="font-semibold text-gray-700">📋 Données extraites</h2>
+                <h2 class="font-semibold text-gray-700">✅ Données extraites</h2>
                 <p class="text-xs text-gray-500" id="rowCount">0 ligne(s)</p>
             </div>
             <div class="flex gap-2">
-                <button id="exportAllBtn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg shadow text-sm">📥 CSV</button>
+                <button id="exportAllBtn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg shadow text-sm">📥 Exporter CSV</button>
                 <button id="copyAllArtikelBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg shadow text-sm">📋 Copier tous les Artikel</button>
             </div>
         </div>
         
         <div class="overflow-x-auto">
-            <div id="tableWrapper" class="max-h-96 overflow-auto">
-                <table id="dataTable" class="min-w-full divide-y divide-gray-200 text-sm">
-                    <thead id="tableHeader" class="bg-gray-50 sticky top-0">
-                        <!-- Dynamique -->
-                    </thead>
-                    <tbody id="tableBody" class="divide-y divide-gray-200 bg-white">
-                        <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">En attente d'un fichier...</td></tr>
-                    </tbody>
-                </table>
-            </div>
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikelnummer</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Totaal (€)</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="extractedBody" class="divide-y divide-gray-200 bg-white">
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">En attente...</td></tr>
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
@@ -90,15 +135,10 @@
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     let rawOcrText = "";
-    let parsedRows = [];      // Tableau de tableaux (lignes x colonnes)
-    let headers = [];         // En-têtes détectés
-    let mapping = {           // Mapping des colonnes
-        artikel: -1,
-        omschrijving: -1,
-        aantal: -1,
-        totaal: -1
-    };
-    let selectedMapping = null; // Pour le mapping manuel
+    let parsedRows = [];
+    let headers = [];
+    let mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 };
+    let waitingForMapping = null;
     let extractedData = [];
 
     function showToast(message, isError = false) {
@@ -118,201 +158,175 @@
         }
     }
 
-    // Parser le texte OCR en tableau
+    // Parser OCR en tableau
     function parseOcrToTable(ocrText) {
         const lines = ocrText.split(/\r?\n/);
         const dataRows = [];
         let detectedHeaders = [];
         
-        // Détection d'en-têtes : chercher une ligne avec des mots-clés
         for (let i = 0; i < Math.min(lines.length, 30); i++) {
-            const lowerLine = lines[i].toLowerCase();
+            const line = lines[i];
+            const parts = line.split(/\s{2,}|\t/).filter(p => p.trim().length > 0);
+            const lowerLine = line.toLowerCase();
+            
             if ((lowerLine.includes('artikel') || lowerLine.includes('product') || lowerLine.includes('description') ||
                  lowerLine.includes('omschrijving') || lowerLine.includes('aantal') || lowerLine.includes('quantity') ||
                  lowerLine.includes('prijs') || lowerLine.includes('totaal') || lowerLine.includes('total')) &&
-                 lines[i].split(/\s{2,}|\t/).length >= 3) {
-                
-                detectedHeaders = lines[i].split(/\s{2,}|\t/).map(h => h.trim());
-                // Nettoyer les en-têtes
-                detectedHeaders = detectedHeaders.filter(h => h.length > 0 && !h.match(/^-+$/));
+                 parts.length >= 3) {
+                detectedHeaders = parts.map(h => h.trim());
                 break;
             }
         }
         
         if (detectedHeaders.length === 0 && lines.length > 0) {
-            // Fallback: utiliser la première ligne non vide comme en-tête
             for (let line of lines) {
                 const parts = line.split(/\s{2,}|\t/).filter(p => p.trim().length > 0);
-                if (parts.length >= 3) {
+                if (parts.length >= 3 && parts[0].match(/[A-Za-z]/)) {
                     detectedHeaders = parts;
                     break;
                 }
             }
         }
         
-        // Parcourir les lignes pour extraire les données
         for (let line of lines) {
             line = line.trim();
             if (line.length === 0) continue;
-            
-            // Ignorer les lignes de total/footer
             if (line.toLowerCase().includes('totaal') && !line.match(/\d{3,}/)) continue;
-            if (line.match(/^[A-Z\s]{10,}$/)) continue;
+            if (line.match(/^[A-Z\s]{15,}$/)) continue;
             
             const cells = line.split(/\s{2,}|\t/).map(c => c.trim()).filter(c => c.length > 0);
-            if (cells.length >= 3 && !cells.some(c => detectedHeaders.includes(c))) {
-                // Ajuster la taille pour correspondre aux en-têtes
+            if (cells.length >= 3 && !detectedHeaders.some(h => cells[0] === h)) {
                 while (cells.length < detectedHeaders.length) cells.push('');
                 dataRows.push(cells.slice(0, detectedHeaders.length));
             }
         }
         
-        // Nettoyer les données : remplacer les virgules décimales
         for (let row of dataRows) {
             for (let i = 0; i < row.length; i++) {
-                if (/^\d+,\d{2}$/.test(row[i])) {
-                    row[i] = row[i].replace(',', '.');
-                }
+                if (/^\d+,\d{2}$/.test(row[i])) row[i] = row[i].replace(',', '.');
             }
         }
         
         return { headers: detectedHeaders, rows: dataRows };
     }
 
-    // Détection automatique intelligente
+    // Détection auto
     function autoDetectMapping() {
         const newMapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 };
         
         for (let i = 0; i < headers.length; i++) {
             const h = headers[i].toLowerCase();
-            
-            if (newMapping.artikel === -1 && (h.includes('artikel') || h.includes('art.') || h.includes('product') || h.includes('code'))) {
+            if (newMapping.artikel === -1 && (h.includes('artikel') || h.includes('art.') || h.includes('product') || h.includes('code')))
                 newMapping.artikel = i;
-            }
-            if (newMapping.omschrijving === -1 && (h.includes('omschrijving') || h.includes('description') || h.includes('product') || h.includes('naam'))) {
+            if (newMapping.omschrijving === -1 && (h.includes('omschrijving') || h.includes('description') || h.includes('productnaam')))
                 newMapping.omschrijving = i;
-            }
-            if (newMapping.aantal === -1 && (h.includes('aantal') || h.includes('quantity') || h.includes('qty') || h.includes('hoeveelheid'))) {
+            if (newMapping.aantal === -1 && (h.includes('aantal') || h.includes('quantity') || h.includes('qty')))
                 newMapping.aantal = i;
-            }
-            if (newMapping.totaal === -1 && (h.includes('totaal') || h.includes('total') || h.includes('bedrag') || h.includes('prijs'))) {
+            if (newMapping.totaal === -1 && (h.includes('totaal') || h.includes('total') || h.includes('bedrag')))
                 newMapping.totaal = i;
-            }
         }
         
-        // Si certains ne sont pas trouvés, essayer de deviner par type de données
         if (parsedRows.length > 0) {
             for (let i = 0; i < headers.length; i++) {
-                if (newMapping.artikel === -1 && parsedRows.some(row => row[i] && row[i].match(/^\d{6,}$/))) {
+                if (newMapping.artikel === -1 && parsedRows.some(r => r[i] && r[i].match(/^\d{6,}$/)))
                     newMapping.artikel = i;
-                }
-                if (newMapping.aantal === -1 && parsedRows.some(row => row[i] && row[i].match(/^\d+[\.,]?\d*$/) && parseFloat(row[i]) < 1000)) {
+                if (newMapping.aantal === -1 && parsedRows.some(r => r[i] && r[i].match(/^\d+[\.,]?\d*$/) && parseFloat(r[i]) < 1000))
                     newMapping.aantal = i;
-                }
-                if (newMapping.totaal === -1 && parsedRows.some(row => row[i] && row[i].match(/^\d+[\.,]?\d*$/) && parseFloat(row[i]) > 10)) {
+                if (newMapping.totaal === -1 && parsedRows.some(r => r[i] && r[i].match(/^\d+[\.,]?\d*$/) && parseFloat(r[i]) > 10))
                     newMapping.totaal = i;
-                }
             }
         }
         
         return newMapping;
     }
 
-    // Appliquer le mapping et générer extractedData
+    // Appliquer mapping et extraire
     function applyMappingAndRender() {
         extractedData = [];
-        
         for (let row of parsedRows) {
             const item = {
                 artikel: mapping.artikel !== -1 && row[mapping.artikel] ? row[mapping.artikel] : '',
                 omschrijving: mapping.omschrijving !== -1 && row[mapping.omschrijving] ? row[mapping.omschrijving] : '',
-                aantal: mapping.aantal !== -1 && row[mapping.aantal] ? row[mapping.aantal] : '',
-                totaal: mapping.totaal !== -1 && row[mapping.totaal] ? row[mapping.totaal] : ''
+                aantal: mapping.aantal !== -1 && row[mapping.aantal] ? row[mapping.aantal].replace(',', '.') : '',
+                totaal: mapping.totaal !== -1 && row[mapping.totaal] ? row[mapping.totaal].replace(',', '.') : ''
             };
-            
-            // Nettoyer les valeurs
-            if (item.aantal) item.aantal = item.aantal.replace(',', '.');
-            if (item.totaal) item.totaal = item.totaal.replace(',', '.');
-            
-            // N'inclure que les lignes avec au moins l'article ou la description
-            if (item.artikel || item.omschrijving) {
-                extractedData.push(item);
-            }
+            if (item.artikel || item.omschrijving) extractedData.push(item);
         }
         
-        renderTable();
+        renderExtractedData();
         
-        const mappingStatus = document.getElementById('mappingStatus');
-        mappingStatus.innerHTML = `📌 Artikel: ${mapping.artikel !== -1 ? headers[mapping.artikel] : '❌'} | 
-                                   📝 Omschrijving: ${mapping.omschrijving !== -1 ? headers[mapping.omschrijving] : '❌'} | 
-                                   🔢 Aantal: ${mapping.aantal !== -1 ? headers[mapping.aantal] : '❌'} | 
-                                   💰 Totaal: ${mapping.totaal !== -1 ? headers[mapping.totaal] : '❌'}`;
+        const statusDiv = document.getElementById('mappingStatus');
+        statusDiv.innerHTML = `
+            <span class="font-semibold">📌 Mapping actuel :</span><br>
+            🔵 Artikel: ${mapping.artikel !== -1 ? headers[mapping.artikel] : '❌ non défini'}<br>
+            🟢 Omschrijving: ${mapping.omschrijving !== -1 ? headers[mapping.omschrijving] : '❌ non défini'}<br>
+            🟠 Aantal: ${mapping.aantal !== -1 ? headers[mapping.aantal] : '❌ non défini'}<br>
+            🟣 Totaal: ${mapping.totaal !== -1 ? headers[mapping.totaal] : '❌ non défini'}
+        `;
     }
 
-    function renderTable() {
-        const tbody = document.getElementById('tableBody');
+    // Afficher tableau brut avec couleurs
+    function renderRawTable() {
         const thead = document.getElementById('tableHeader');
-        const rowCountSpan = document.getElementById('rowCount');
+        const tbody = document.getElementById('tableBody');
         
         if (!parsedRows.length || !headers.length) {
-            tbody.innerHTML = '<tr><td colspan="10" class="px-4 py-8 text-center text-gray-400">Aucune donnée</td></tr>';
-            thead.innerHTML = '';
-            rowCountSpan.textContent = '0 ligne(s)';
+            thead.innerHTML = '<tr><th class="px-4 py-2">Aucune donnée</th></tr>';
+            tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-gray-400">Chargez un fichier</td></tr>';
             return;
         }
         
-        // Afficher TOUTES les colonnes avec surbrillance pour le mapping
+        // En-têtes cliquables
         thead.innerHTML = '';
         const headerRow = document.createElement('tr');
         headers.forEach((h, idx) => {
             const th = document.createElement('th');
-            th.className = `px-3 py-2 text-left text-xs font-medium uppercase tracking-wider border-b cursor-pointer hover:bg-gray-100
-                ${mapping.artikel === idx ? 'bg-blue-100' : ''}
-                ${mapping.omschrijving === idx ? 'bg-green-100' : ''}
-                ${mapping.aantal === idx ? 'bg-orange-100' : ''}
-                ${mapping.totaal === idx ? 'bg-purple-100' : ''}`;
+            let colorClass = '';
+            if (mapping.artikel === idx) colorClass = 'col-artikel';
+            else if (mapping.omschrijving === idx) colorClass = 'col-omschrijving';
+            else if (mapping.aantal === idx) colorClass = 'col-aantal';
+            else if (mapping.totaal === idx) colorClass = 'col-totaal';
+            if (waitingForMapping !== null) colorClass = 'mapping-active';
+            
+            th.className = `px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase border-b cursor-pointer hover:bg-gray-100 ${colorClass}`;
             th.textContent = h;
             th.setAttribute('data-col', idx);
-            th.onclick = (e) => {
-                e.stopPropagation();
-                if (selectedMapping !== null) {
-                    mapping[selectedMapping] = idx;
-                    selectedMapping = null;
-                    document.getElementById('mappingStatus').innerHTML += ` → ${headers[idx]} ✓`;
+            th.onclick = () => {
+                if (waitingForMapping !== null) {
+                    mapping[waitingForMapping] = idx;
+                    waitingForMapping = null;
                     applyMappingAndRender();
-                    renderTable(); // Re-render pour les couleurs
+                    renderRawTable();
+                    document.getElementById('mappingInstruction').classList.add('hidden');
+                    showToast(`✅ Colonne définie : ${h}`);
                 }
             };
             headerRow.appendChild(th);
         });
         thead.appendChild(headerRow);
         
-        // Afficher les lignes
+        // Corps
         tbody.innerHTML = '';
         for (let row of parsedRows) {
             const tr = document.createElement('tr');
-            tr.className = 'hover:bg-gray-50 cursor-pointer';
+            tr.className = 'hover:bg-gray-50';
             for (let i = 0; i < headers.length; i++) {
                 const td = document.createElement('td');
-                td.className = `px-3 py-2 border-b text-gray-700 text-xs
-                    ${mapping.artikel === i ? 'bg-blue-50' : ''}
-                    ${mapping.omschrijving === i ? 'bg-green-50' : ''}
-                    ${mapping.aantal === i ? 'bg-orange-50' : ''}
-                    ${mapping.totaal === i ? 'bg-purple-50' : ''}`;
+                let colorClass = '';
+                if (mapping.artikel === i) colorClass = 'col-artikel';
+                else if (mapping.omschrijving === i) colorClass = 'col-omschrijving';
+                else if (mapping.aantal === i) colorClass = 'col-aantal';
+                else if (mapping.totaal === i) colorClass = 'col-totaal';
+                td.className = `px-3 py-2 border-b text-gray-700 text-xs ${colorClass}`;
                 td.textContent = row[i] || '';
                 tr.appendChild(td);
             }
             tbody.appendChild(tr);
         }
-        
-        rowCountSpan.textContent = `${parsedRows.length} ligne(s) brute(s) → ${extractedData.length} extraite(s)`;
-        
-        // Afficher le panneau de config
-        document.getElementById('configPanel').classList.remove('hidden');
     }
 
     function renderExtractedData() {
-        const tbody = document.getElementById('tableBody');
+        const tbody = document.getElementById('extractedBody');
         const rowCountSpan = document.getElementById('rowCount');
         
         if (!extractedData.length) {
@@ -334,17 +348,16 @@
                 <td class="px-4 py-3 text-sm font-mono">${escapeHtml(row.totaal ? '€ ' + row.totaal : '-')}</td>
                 <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex gap-2">
-                        <button class="copy-artikel bg-blue-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Art.</button>
-                        <button class="copy-desc bg-green-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Desc.</button>
-                        <button class="copy-qty bg-orange-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Aantal</button>
-                        <button class="copy-total bg-purple-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Totaal</button>
+                        <button class="copy-artikel bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Art.</button>
+                        <button class="copy-desc bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Desc.</button>
+                        <button class="copy-qty bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Aantal</button>
+                        <button class="copy-total bg-purple-500 hover:bg-purple-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Totaal</button>
                     </div>
                 </td>
             `;
             tbody.appendChild(tr);
         });
         
-        // Attacher événements
         document.querySelectorAll('.copy-artikel').forEach(btn => {
             btn.onclick = () => copyToClipboard(extractedData[btn.dataset.idx].artikel, 'Artikel');
         });
@@ -371,12 +384,11 @@
     async function processFile(file) {
         const isPdf = file.type === 'application/pdf';
         const isImage = file.type.startsWith('image/');
-        
         if (!isPdf && !isImage) { showToast("Format non supporté", true); return; }
         
         const statusDiv = document.getElementById('status');
         statusDiv.classList.remove('hidden');
-        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Traitement...</span>';
+        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Traitement en cours...</span>';
         
         try {
             let imagesDataUrls = [];
@@ -415,15 +427,14 @@
             parsedRows = parsed.rows;
             
             if (!parsedRows.length) {
-                document.getElementById('tableBody').innerHTML = '<tr><td colspan="10" class="px-4 py-8 text-center text-red-500">❌ Aucune donnée tabulaire détectée</td></tr>';
+                document.getElementById('tableBody').innerHTML = '<tr><td class="px-4 py-8 text-center text-red-500">❌ Aucune donnée détectée</td></tr>';
                 statusDiv.innerHTML = '<span class="text-red-600">⚠️ Aucune donnée</span>';
                 return;
             }
             
-            // Détection auto
             mapping = autoDetectMapping();
             applyMappingAndRender();
-            renderExtractedData();
+            renderRawTable();
             
             statusDiv.innerHTML = `<span class="text-green-600">✅ ${parsedRows.length} lignes trouvées</span>`;
             setTimeout(() => statusDiv.classList.add('hidden'), 3000);
@@ -434,7 +445,7 @@
         }
     }
     
-    // Événements UI
+    // Événements
     document.getElementById('uploadZone').onclick = () => document.getElementById('fileInput').click();
     document.getElementById('fileInput').onchange = (e) => { if (e.target.files[0]) processFile(e.target.files[0]); };
     
@@ -443,15 +454,15 @@
     document.getElementById('autoDetectBtn').onclick = () => {
         mapping = autoDetectMapping();
         applyMappingAndRender();
-        renderExtractedData();
+        renderRawTable();
         showToast("Détection automatique appliquée");
     };
     
-    document.getElementById('mapArtikelBtn').onclick = () => { selectedMapping = 'artikel'; showToast("Cliquez sur une colonne pour définir ARTIKEL"); };
-    document.getElementById('mapDescBtn').onclick = () => { selectedMapping = 'omschrijving'; showToast("Cliquez sur une colonne pour définir OMSCHRIJVING"); };
-    document.getElementById('MapQtyBtn').onclick = () => { selectedMapping = 'aantal'; showToast("Cliquez sur une colonne pour définir AANTAL"); };
-    document.getElementById('mapTotalBtn').onclick = () => { selectedMapping = 'totaal'; showToast("Cliquez sur une colonne pour définir TOTAAL"); };
-    document.getElementById('clearMappingBtn').onclick = () => { mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 }; applyMappingAndRender(); renderExtractedData(); showToast("Mapping effacé"); };
+    document.getElementById('mapArtikelBtn').onclick = () => { waitingForMapping = 'artikel'; document.getElementById('mappingInstruction').classList.remove('hidden'); document.getElementById('mappingInstruction').innerHTML = '🟡 Cliquez sur la colonne ARTICLE dans le tableau ci-dessus'; showToast("Cliquez sur la colonne ARTICLE dans le tableau"); };
+    document.getElementById('mapDescBtn').onclick = () => { waitingForMapping = 'omschrijving'; document.getElementById('mappingInstruction').classList.remove('hidden'); document.getElementById('mappingInstruction').innerHTML = '🟡 Cliquez sur la colonne OMSCHRIJVING dans le tableau ci-dessus'; showToast("Cliquez sur la colonne DESCRIPTION dans le tableau"); };
+    document.getElementById('mapQtyBtn').onclick = () => { waitingForMapping = 'aantal'; document.getElementById('mappingInstruction').classList.remove('hidden'); document.getElementById('mappingInstruction').innerHTML = '🟡 Cliquez sur la colonne AANTAL dans le tableau ci-dessus'; showToast("Cliquez sur la colonne QUANTITÉ dans le tableau"); };
+    document.getElementById('mapTotalBtn').onclick = () => { waitingForMapping = 'totaal'; document.getElementById('mappingInstruction').classList.remove('hidden'); document.getElementById('mappingInstruction').innerHTML = '🟡 Cliquez sur la colonne TOTAAL dans le tableau ci-dessus'; showToast("Cliquez sur la colonne TOTAL dans le tableau"); };
+    document.getElementById('clearMappingBtn').onclick = () => { mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 }; applyMappingAndRender(); renderRawTable(); showToast("Mapping effacé"); };
     
     document.getElementById('exportAllBtn').onclick = () => {
         if (!extractedData.length) { showToast("Aucune donnée", true); return; }
@@ -469,7 +480,7 @@
     document.getElementById('copyAllArtikelBtn').onclick = () => {
         const artikelList = extractedData.map(r => r.artikel).filter(a => a).join('\n');
         if (artikelList) copyToClipboard(artikelList, `${extractedData.length} articles`);
-        else showToast("Aucun article à copier", true);
+        else showToast("Aucun article", true);
     };
     
     // Drag & drop
