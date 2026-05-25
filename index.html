@@ -3,20 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF OCR - Extracteur avec Mapping Manuel</title>
+    <title>PDF OCR - Sélection visuelle du tableau</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
     <style>
-        .copy-btn { transition: all 0.2s; cursor: pointer; }
-        .copy-btn:active { transform: scale(0.95); }
-        .col-selected { background-color: #fef08a !important; }
-        .col-artikel { background-color: #dbeafe !important; }
-        .col-omschrijving { background-color: #dcfce7 !important; }
-        .col-aantal { background-color: #fed7aa !important; }
-        .col-totaal { background-color: #e9d5ff !important; }
-        .step { border-left: 4px solid #3b82f6; }
-        .pdf-preview { max-height: 400px; overflow: auto; background: #f3f4f6; }
+        #pdfCanvas {
+            max-width: 100%;
+            height: auto;
+            cursor: crosshair;
+        }
+        .canvas-container {
+            position: relative;
+            display: inline-block;
+        }
+        .selection-overlay {
+            position: absolute;
+            border: 2px solid #3b82f6;
+            background-color: rgba(59, 130, 246, 0.2);
+            cursor: move;
+            display: none;
+        }
+        .selection-overlay .resize-handle {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background-color: #3b82f6;
+            border: 1px solid white;
+        }
+        .resize-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
+        .resize-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
+        .resize-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+        .resize-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
+        .highlight-column {
+            transition: all 0.2s;
+        }
+        .col-selected {
+            background-color: #fef08a !important;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-6">
@@ -24,125 +48,129 @@
 <div class="max-w-7xl mx-auto">
     <!-- En-tête -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 OCR Extracteur Universel</h1>
-        <p class="text-gray-600">Extrait automatiquement les 4 colonnes de n'importe quelle facture</p>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 OCR - Sélection visuelle du tableau</h1>
+        <p class="text-gray-600">1️⃣ Chargez le PDF | 2️⃣ Dessinez un rectangle autour du tableau | 3️⃣ OCR extrait les données</p>
     </div>
 
-    <!-- ÉTAPE 1 : UPLOAD -->
-    <div class="bg-white rounded-xl shadow-md p-6 mb-6 step">
+    <!-- Étape 1 : Upload -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
         <div class="flex items-center gap-3 mb-4">
             <div class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">1</div>
-            <h2 class="font-semibold text-gray-800">Chargez votre PDF ou image</h2>
+            <h2 class="font-semibold text-gray-800">Chargez votre PDF</h2>
         </div>
         
         <div id="uploadZone" class="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50 transition">
-            <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" class="hidden" />
+            <input type="file" id="fileInput" accept=".pdf" class="hidden" />
             <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
-            <p class="mt-2 text-gray-600">Cliquez ou glissez un fichier</p>
+            <p class="mt-2 text-gray-600">Cliquez ou glissez un PDF</p>
         </div>
         <div id="status" class="mt-3 text-sm text-gray-500 hidden"></div>
     </div>
 
-    <!-- ÉTAPE 2 : APERÇU + TABLEAU -->
-    <div id="step2" class="bg-white rounded-xl shadow-md p-6 mb-6 step hidden">
+    <!-- Étape 2 : Sélection du tableau -->
+    <div id="step2" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
         <div class="flex items-center gap-3 mb-4">
             <div class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">2</div>
-            <h2 class="font-semibold text-gray-800">Cliquez sur les colonnes pour les définir</h2>
+            <h2 class="font-semibold text-gray-800">Dessinez le cadre autour du tableau</h2>
         </div>
         
-        <!-- Aperçu du PDF -->
-        <div class="mb-4">
-            <p class="text-sm text-gray-600 mb-2">📷 Aperçu du document :</p>
-            <div class="pdf-preview rounded-lg border p-2">
-                <canvas id="pdfCanvas" class="max-w-full h-auto mx-auto"></canvas>
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
+            <p class="text-sm font-medium text-yellow-800">✏️ Instructions :</p>
+            <ul class="text-xs text-yellow-700 mt-1 list-disc list-inside">
+                <li><span class="font-bold">Cliquez-glissez</span> pour dessiner un rectangle autour du tableau</li>
+                <li>Vous pouvez <span class="font-bold">redimensionner</span> le rectangle avec les poignées</li>
+                <li>Vous pouvez <span class="font-bold">déplacer</span> le rectangle en cliquant-glissant à l'intérieur</li>
+                <li>Cliquez sur <span class="font-bold">"Extraire le tableau"</span> pour lancer l'OCR</li>
+            </ul>
+        </div>
+        
+        <div class="flex justify-center">
+            <div class="canvas-container">
+                <canvas id="pdfCanvas" class="border rounded-lg shadow"></canvas>
+                <div id="selectionOverlay" class="selection-overlay">
+                    <div class="resize-handle nw"></div>
+                    <div class="resize-handle ne"></div>
+                    <div class="resize-handle sw"></div>
+                    <div class="resize-handle se"></div>
+                </div>
             </div>
         </div>
         
-        <!-- Instructions mapping -->
-        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
-            <p class="text-sm font-medium text-yellow-800">📌 COMMENT FONCTIONNE LE MAPPING :</p>
-            <ol class="text-xs text-yellow-700 mt-1 list-decimal list-inside">
-                <li>Cliquez d'abord sur un bouton ci-dessous (ex: "Définir colonne ARTIKEL")</li>
-                <li>Ensuite, <span class="font-bold">cliquez sur l'en-tête (la case grise en haut)</span> de la colonne correspondante dans le tableau</li>
-                <li>La colonne sera colorée et les données apparaîtront en bas</li>
-            </ol>
+        <div class="flex justify-center mt-4">
+            <button id="extractTableBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow">
+                🔍 Extraire le tableau sélectionné
+            </button>
+        </div>
+    </div>
+
+    <!-- Étape 3 : Texte OCR extrait + Mapping -->
+    <div id="step3" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">3</div>
+            <h2 class="font-semibold text-gray-800">Texte extrait - Sélectionnez les colonnes</h2>
         </div>
         
-        <!-- Boutons de mapping -->
         <div class="flex flex-wrap gap-3 mb-4">
-            <button id="mapArtikelBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
-                🔵 1. Définir colonne ARTIKEL
+            <button id="mapArtikelBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                🔵 Définir colonne ARTIKEL
             </button>
-            <button id="mapDescBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
-                🟢 2. Définir colonne OMSCHRIJVING
+            <button id="mapDescBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                🟢 Définir colonne OMSCHRIJVING
             </button>
-            <button id="mapQtyBtn" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
-                🟠 3. Définir colonne AANTAL
+            <button id="mapQtyBtn" class="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                🟠 Définir colonne AANTAL
             </button>
-            <button id="mapTotalBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
-                🟣 4. Définir colonne TOTAAL
+            <button id="mapTotalBtn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                🟣 Définir colonne TOTAAL
             </button>
-            <button id="autoDetectBtn" class="bg-gray-700 hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
-                🤖 Détection automatique
-            </button>
-            <button id="clearMappingBtn" class="bg-gray-400 hover:bg-gray-500 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow">
-                🗑️ Tout effacer
+            <button id="resetMappingBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">
+                🔄 Réinitialiser
             </button>
         </div>
         
-        <!-- Message d'instruction dynamique -->
-        <div id="mappingInstruction" class="p-3 rounded-lg mb-4 text-center font-medium hidden">
-            ⚡ En attente de votre clic sur une colonne...
+        <div id="mappingStatus" class="p-3 bg-gray-100 rounded-lg text-sm mb-4">
+            ⚠️ Cliquez sur un bouton ci-dessus, puis sur une colonne dans le tableau
         </div>
         
-        <!-- Mapping actuel -->
-        <div id="mappingStatus" class="p-3 bg-gray-50 rounded-lg text-sm mb-4">
-            Aucun mapping défini
-        </div>
-        
-        <!-- LE TABLEAU (c'est ICI qu'il faut cliquer) -->
-        <p class="text-sm font-semibold text-gray-700 mb-2">📊 Cliquez sur les EN-TÊTES (case grise) de ce tableau :</p>
-        <div class="overflow-x-auto border rounded-lg max-h-80 overflow-auto">
-            <table id="dataTable" class="min-w-full divide-y divide-gray-200 text-sm">
+        <!-- Tableau OCR -->
+        <div class="overflow-x-auto border rounded-lg max-h-96 overflow-auto">
+            <table id="ocrTable" class="min-w-full divide-y divide-gray-200 text-sm">
                 <thead id="tableHeader" class="bg-gray-100 sticky top-0">
                     <tr>
-                        <th class="px-4 py-2 text-center text-gray-500">Chargez un fichier...</th>
+                        <th class="px-3 py-2 text-center text-gray-500">Données OCR</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="divide-y divide-gray-200 bg-white">
-                    <tr><td class="px-4 py-8 text-center text-gray-400">En attente d'un fichier</td></tr>
+                    <tr><td class="px-4 py-8 text-center text-gray-400">En attente de l'OCR...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
-    <!-- ÉTAPE 3 : RÉSULTATS -->
-    <div id="step3" class="bg-white rounded-xl shadow-md overflow-hidden hidden">
-        <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center flex-wrap gap-2">
-            <div>
-                <h2 class="font-semibold text-gray-700">✅ Données extraites (copiables)</h2>
-                <p class="text-xs text-gray-500" id="rowCount">0 ligne(s)</p>
-            </div>
+    <!-- Étape 4 : Résultats finaux -->
+    <div id="step4" class="bg-white rounded-xl shadow-md overflow-hidden hidden">
+        <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center">
+            <h2 class="font-semibold text-gray-700">✅ Données extraites (copiables)</h2>
             <div class="flex gap-2">
-                <button id="exportAllBtn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded-lg shadow text-sm">📥 Exporter CSV</button>
-                <button id="copyAllArtikelBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded-lg shadow text-sm">📋 Copier tous les Artikel</button>
+                <button id="exportCsvBtn" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">📥 CSV</button>
+                <button id="copyAllBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">📋 Copier tous les Artikel</button>
             </div>
         </div>
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Artikelnummer</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Omschrijving</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Aantal</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Totaal (€)</th>
-                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Artikel</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Omschrijving</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Aantal</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Totaal</th>
+                        <th class="px-4 py-3 text-left text-xs font-medium text-gray-500">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="extractedBody" class="divide-y divide-gray-200 bg-white">
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Définissez le mapping ci-dessus</td></tr>
+                <tbody id="finalResultsBody" class="divide-y divide-gray-200 bg-white">
+                    <tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Sélectionnez les colonnes ci-dessus</td></tr>
                 </tbody>
             </table>
         </div>
@@ -154,43 +182,275 @@
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-    let rawOcrText = "";
-    let parsedRows = [];
-    let headers = [];
+    let pdfDoc = null;
+    let currentPage = 1;
+    let scale = 1.5;
+    let viewport = null;
+    let canvas = document.getElementById('pdfCanvas');
+    let ctx = canvas.getContext('2d');
+    
+    // Sélection rectangle
+    let selectionOverlay = document.getElementById('selectionOverlay');
+    let isDrawing = false;
+    let isDragging = false;
+    let isResizing = false;
+    let resizeDir = null;
+    let startX, startY;
+    let rect = { x: 0, y: 0, w: 0, h: 0 };
+    
+    // Données OCR
+    let ocrHeaders = [];
+    let ocrRows = [];
     let mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 };
     let waitingForMapping = null;
-    let extractedData = [];
-    let currentPdfCanvas = null;
-
-    function showToast(message, isError = false) {
+    let finalData = [];
+    
+    function showToast(msg, isError = false) {
         const toast = document.getElementById('toast');
-        toast.textContent = message;
-        toast.classList.remove('hidden', 'bg-gray-900', 'bg-red-600');
-        toast.classList.add(isError ? 'bg-red-600' : 'bg-gray-900');
-        setTimeout(() => toast.classList.add('hidden'), 2000);
+        toast.textContent = msg;
+        toast.classList.remove('hidden');
+        toast.className = `fixed bottom-5 right-5 px-4 py-2 rounded-lg shadow-lg transition-all z-50 ${isError ? 'bg-red-600' : 'bg-gray-900'} text-white`;
+        setTimeout(() => toast.classList.add('hidden'), 3000);
     }
-
+    
     async function copyToClipboard(text, label) {
         try {
             await navigator.clipboard.writeText(text);
-            showToast(`✅ ${label} : ${text.substring(0, 50)}`);
+            showToast(`✅ ${label} copié : ${text.substring(0, 40)}`);
         } catch (err) {
-            showToast(`❌ Erreur`, true);
+            showToast(`❌ Erreur copie`, true);
         }
     }
-
+    
+    // Charger et afficher PDF
+    async function loadPDF(file) {
+        const statusDiv = document.getElementById('status');
+        statusDiv.classList.remove('hidden');
+        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Chargement du PDF...</span>';
+        
+        const arrayBuffer = await file.arrayBuffer();
+        pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const page = await pdfDoc.getPage(currentPage);
+        viewport = page.getViewport({ scale: scale });
+        
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        
+        statusDiv.innerHTML = '<span class="text-green-600">✅ PDF chargé ! Dessinez le cadre autour du tableau</span>';
+        document.getElementById('step2').classList.remove('hidden');
+        
+        // Initialiser la sélection
+        initSelection();
+    }
+    
+    function initSelection() {
+        const container = document.querySelector('.canvas-container');
+        const canvasRect = canvas.getBoundingClientRect();
+        
+        selectionOverlay.style.display = 'none';
+        rect = { x: 0, y: 0, w: 0, h: 0 };
+        
+        // Événements souris
+        canvas.addEventListener('mousedown', onMouseDown);
+        canvas.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('mouseup', onMouseUp);
+        
+        // Poignées de redimensionnement
+        setupResizeHandles();
+    }
+    
+    function setupResizeHandles() {
+        const handles = document.querySelectorAll('.resize-handle');
+        handles.forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                isResizing = true;
+                resizeDir = handle.className.split(' ')[1];
+                startX = e.clientX;
+                startY = e.clientY;
+                document.addEventListener('mousemove', onResize);
+                document.addEventListener('mouseup', stopResize);
+            });
+        });
+        
+        // Déplacer la sélection
+        selectionOverlay.addEventListener('mousedown', (e) => {
+            if (e.target === selectionOverlay || e.target.parentNode === selectionOverlay) {
+                e.stopPropagation();
+                isDragging = true;
+                startX = e.clientX - rect.x;
+                startY = e.clientY - rect.y;
+                document.addEventListener('mousemove', onDrag);
+                document.addEventListener('mouseup', stopDrag);
+            }
+        });
+    }
+    
+    function onMouseDown(e) {
+        const canvasRect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / canvasRect.width;
+        const scaleY = canvas.height / canvasRect.height;
+        
+        startX = (e.clientX - canvasRect.left) * scaleX;
+        startY = (e.clientY - canvasRect.top) * scaleY;
+        isDrawing = true;
+        
+        selectionOverlay.style.display = 'block';
+        rect = { x: startX, y: startY, w: 0, h: 0 };
+        updateOverlay();
+    }
+    
+    function onMouseMove(e) {
+        if (!isDrawing) return;
+        
+        const canvasRect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / canvasRect.width;
+        const scaleY = canvas.height / canvasRect.height;
+        
+        const currentX = (e.clientX - canvasRect.left) * scaleX;
+        const currentY = (e.clientY - canvasRect.top) * scaleY;
+        
+        rect.w = currentX - rect.x;
+        rect.h = currentY - rect.y;
+        
+        updateOverlay();
+    }
+    
+    function onMouseUp() {
+        isDrawing = false;
+    }
+    
+    function onResize(e) {
+        if (!isResizing) return;
+        const canvasRect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / canvasRect.width;
+        const scaleY = canvas.height / canvasRect.height;
+        
+        const dx = (e.clientX - startX) * scaleX;
+        const dy = (e.clientY - startY) * scaleY;
+        
+        switch(resizeDir) {
+            case 'nw': rect.x += dx; rect.y += dy; rect.w -= dx; rect.h -= dy; break;
+            case 'ne': rect.y += dy; rect.w += dx; rect.h -= dy; break;
+            case 'sw': rect.x += dx; rect.w -= dx; rect.h += dy; break;
+            case 'se': rect.w += dx; rect.h += dy; break;
+        }
+        
+        if (rect.w < 10) rect.w = 10;
+        if (rect.h < 10) rect.h = 10;
+        
+        startX = e.clientX;
+        startY = e.clientY;
+        updateOverlay();
+    }
+    
+    function stopResize() {
+        isResizing = false;
+        document.removeEventListener('mousemove', onResize);
+    }
+    
+    function onDrag(e) {
+        if (!isDragging) return;
+        const canvasRect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / canvasRect.width;
+        const scaleY = canvas.height / canvasRect.height;
+        
+        rect.x = (e.clientX - startX);
+        rect.y = (e.clientY - startY);
+        
+        updateOverlay();
+    }
+    
+    function stopDrag() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onDrag);
+    }
+    
+    function updateOverlay() {
+        const container = document.querySelector('.canvas-container');
+        const canvasRect = canvas.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const scaleX = canvasRect.width / canvas.width;
+        const scaleY = canvasRect.height / canvas.height;
+        
+        selectionOverlay.style.left = (rect.x * scaleX) + 'px';
+        selectionOverlay.style.top = (rect.y * scaleY) + 'px';
+        selectionOverlay.style.width = (rect.w * scaleX) + 'px';
+        selectionOverlay.style.height = (rect.h * scaleY) + 'px';
+        selectionOverlay.style.display = 'block';
+    }
+    
+    // Extraire la zone sélectionnée avec OCR
+    async function extractSelectedArea() {
+        if (rect.w === 0 || rect.h === 0) {
+            showToast("Veuillez d'abord dessiner un rectangle autour du tableau", true);
+            return;
+        }
+        
+        const statusDiv = document.getElementById('status');
+        statusDiv.classList.remove('hidden');
+        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Extraction OCR en cours...</span>';
+        
+        try {
+            // Créer un canvas temporaire avec seulement la zone sélectionnée
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+            
+            // S'assurer que les coordonnées sont dans les limites
+            let x = Math.max(0, rect.x);
+            let y = Math.max(0, rect.y);
+            let w = Math.min(canvas.width - x, rect.w);
+            let h = Math.min(canvas.height - y, rect.h);
+            
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            
+            // Copier la zone sélectionnée
+            const imageData = ctx.getImageData(x, y, w, h);
+            tempCanvas.width = w;
+            tempCanvas.height = h;
+            tempCtx.putImageData(imageData, 0, 0);
+            
+            const imageUrl = tempCanvas.toDataURL();
+            
+            // OCR sur cette zone
+            const result = await Tesseract.recognize(imageUrl, 'nld', {
+                logger: m => console.log(m),
+                tessedit_pageseg_mode: 6
+            });
+            
+            const ocrText = result.data.text;
+            console.log("OCR Text:", ocrText);
+            
+            // Parser le texte en tableau
+            parseOcrToTable(ocrText);
+            
+            statusDiv.innerHTML = '<span class="text-green-600">✅ OCR terminé ! Maintenant, sélectionnez les colonnes</span>';
+            document.getElementById('step3').classList.remove('hidden');
+            
+        } catch (err) {
+            console.error(err);
+            statusDiv.innerHTML = '<span class="text-red-600">❌ Erreur OCR</span>';
+            showToast("Erreur OCR: " + err.message, true);
+        }
+    }
+    
     function parseOcrToTable(ocrText) {
         const lines = ocrText.split(/\r?\n/);
         const dataRows = [];
         let detectedHeaders = [];
         
-        for (let i = 0; i < Math.min(lines.length, 30); i++) {
+        // Détection des en-têtes
+        for (let i = 0; i < Math.min(lines.length, 20); i++) {
             const line = lines[i];
             const parts = line.split(/\s{2,}|\t/).filter(p => p.trim().length > 0);
             const lowerLine = line.toLowerCase();
             
-            if ((lowerLine.includes('artikel') || lowerLine.includes('product') || lowerLine.includes('omschrijving') ||
-                 lowerLine.includes('aantal') || lowerLine.includes('totaal')) && parts.length >= 3) {
+            if ((lowerLine.includes('artikel') || lowerLine.includes('product') || 
+                 lowerLine.includes('omschrijving') || lowerLine.includes('aantal') ||
+                 lowerLine.includes('totaal')) && parts.length >= 3) {
                 detectedHeaders = parts.map(h => h.trim());
                 break;
             }
@@ -206,6 +466,7 @@
             }
         }
         
+        // Parcourir les lignes
         for (let line of lines) {
             line = line.trim();
             if (line.length === 0) continue;
@@ -218,123 +479,72 @@
             }
         }
         
+        // Nettoyer les nombres
         for (let row of dataRows) {
             for (let i = 0; i < row.length; i++) {
-                if (/^\d+,\d{2}$/.test(row[i])) row[i] = row[i].replace(',', '.');
+                if (/^\d+,\d{2}$/.test(row[i])) {
+                    row[i] = row[i].replace(',', '.');
+                }
             }
         }
         
-        return { headers: detectedHeaders, rows: dataRows };
+        ocrHeaders = detectedHeaders;
+        ocrRows = dataRows;
+        
+        renderOcrTable();
     }
-
-    function autoDetectMapping() {
-        const newMapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 };
-        
-        for (let i = 0; i < headers.length; i++) {
-            const h = headers[i].toLowerCase();
-            if (newMapping.artikel === -1 && (h.includes('artikel') || h.includes('art.') || h.includes('product') || h.includes('code')))
-                newMapping.artikel = i;
-            if (newMapping.omschrijving === -1 && (h.includes('omschrijving') || h.includes('description')))
-                newMapping.omschrijving = i;
-            if (newMapping.aantal === -1 && (h.includes('aantal') || h.includes('quantity') || h.includes('qty')))
-                newMapping.aantal = i;
-            if (newMapping.totaal === -1 && (h.includes('totaal') || h.includes('total') || h.includes('bedrag')))
-                newMapping.totaal = i;
-        }
-        
-        if (parsedRows.length > 0) {
-            for (let i = 0; i < headers.length; i++) {
-                if (newMapping.artikel === -1 && parsedRows.some(r => r[i] && r[i].match(/^\d{6,}$/)))
-                    newMapping.artikel = i;
-                if (newMapping.aantal === -1 && parsedRows.some(r => r[i] && r[i].match(/^\d+[\.,]?\d*$/) && parseFloat(r[i]) < 1000))
-                    newMapping.aantal = i;
-                if (newMapping.totaal === -1 && parsedRows.some(r => r[i] && r[i].match(/^\d+[\.,]?\d*$/) && parseFloat(r[i]) > 10))
-                    newMapping.totaal = i;
-            }
-        }
-        
-        return newMapping;
-    }
-
-    function applyMappingAndRender() {
-        extractedData = [];
-        for (let row of parsedRows) {
-            const item = {
-                artikel: mapping.artikel !== -1 && row[mapping.artikel] ? row[mapping.artikel] : '',
-                omschrijving: mapping.omschrijving !== -1 && row[mapping.omschrijving] ? row[mapping.omschrijving] : '',
-                aantal: mapping.aantal !== -1 && row[mapping.aantal] ? row[mapping.aantal].replace(',', '.') : '',
-                totaal: mapping.totaal !== -1 && row[mapping.totaal] ? row[mapping.totaal].replace(',', '.') : ''
-            };
-            if (item.artikel || item.omschrijving) extractedData.push(item);
-        }
-        
-        renderExtractedData();
-        
-        const statusDiv = document.getElementById('mappingStatus');
-        statusDiv.innerHTML = `
-            <span class="font-semibold">📌 Mapping actuel :</span><br>
-            🔵 Artikel: ${mapping.artikel !== -1 ? headers[mapping.artikel] : '❌ non défini'}<br>
-            🟢 Omschrijving: ${mapping.omschrijving !== -1 ? headers[mapping.omschrijving] : '❌ non défini'}<br>
-            🟠 Aantal: ${mapping.aantal !== -1 ? headers[mapping.aantal] : '❌ non défini'}<br>
-            🟣 Totaal: ${mapping.totaal !== -1 ? headers[mapping.totaal] : '❌ non défini'}
-        `;
-        
-        if (extractedData.length > 0) {
-            document.getElementById('step3').classList.remove('hidden');
-        }
-    }
-
-    function renderRawTable() {
+    
+    function renderOcrTable() {
         const thead = document.getElementById('tableHeader');
         const tbody = document.getElementById('tableBody');
         
-        if (!parsedRows.length || !headers.length) {
-            thead.innerHTML = '<tr><th class="px-4 py-2">Aucune donnée</th></tr>';
-            tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-gray-400">Chargez un fichier</td></tr>';
+        if (!ocrHeaders.length || !ocrRows.length) {
+            tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-red-500">❌ Aucune donnée détectée dans la zone sélectionnée. Essayez un rectangle plus grand.</td></tr>';
             return;
         }
         
+        // En-têtes cliquables
         thead.innerHTML = '';
         const headerRow = document.createElement('tr');
-        headers.forEach((h, idx) => {
+        ocrHeaders.forEach((h, idx) => {
             const th = document.createElement('th');
             let colorClass = '';
-            if (mapping.artikel === idx) colorClass = 'col-artikel';
-            else if (mapping.omschrijving === idx) colorClass = 'col-omschrijving';
-            else if (mapping.aantal === idx) colorClass = 'col-aantal';
-            else if (mapping.totaal === idx) colorClass = 'col-totaal';
-            if (waitingForMapping !== null) colorClass = 'col-selected';
+            if (mapping.artikel === idx) colorClass = 'bg-blue-200';
+            else if (mapping.omschrijving === idx) colorClass = 'bg-green-200';
+            else if (mapping.aantal === idx) colorClass = 'bg-orange-200';
+            else if (mapping.totaal === idx) colorClass = 'bg-purple-200';
             
             th.className = `px-3 py-2 text-left text-xs font-medium text-gray-700 uppercase border-b cursor-pointer hover:bg-gray-200 ${colorClass}`;
-            th.innerHTML = `${h} <span class="text-gray-400 text-xs">▼</span>`;
+            th.textContent = h;
             th.setAttribute('data-col', idx);
             th.onclick = () => {
                 if (waitingForMapping !== null) {
                     mapping[waitingForMapping] = idx;
                     waitingForMapping = null;
                     applyMappingAndRender();
-                    renderRawTable();
-                    document.getElementById('mappingInstruction').classList.add('hidden');
-                    showToast(`✅ Colonne "${h}" définie !`);
+                    renderOcrTable();
+                    document.getElementById('mappingStatus').innerHTML = `✅ Colonne définie : ${h}`;
+                    showToast(`✅ Colonne "${h}" définie comme ${getMappingName(waitingForMapping)}`);
                 } else {
-                    showToast("D'abord, cliquez sur un bouton (Artikels, Omschrijving, etc.)", false);
+                    showToast("D'abord, cliquez sur un bouton (Artikel, Omschrijving, etc.)", false);
                 }
             };
             headerRow.appendChild(th);
         });
         thead.appendChild(headerRow);
         
+        // Corps
         tbody.innerHTML = '';
-        for (let row of parsedRows.slice(0, 50)) {
+        for (let row of ocrRows.slice(0, 100)) {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-gray-50';
-            for (let i = 0; i < headers.length; i++) {
+            for (let i = 0; i < ocrHeaders.length; i++) {
                 const td = document.createElement('td');
                 let colorClass = '';
-                if (mapping.artikel === i) colorClass = 'col-artikel';
-                else if (mapping.omschrijving === i) colorClass = 'col-omschrijving';
-                else if (mapping.aantal === i) colorClass = 'col-aantal';
-                else if (mapping.totaal === i) colorClass = 'col-totaal';
+                if (mapping.artikel === i) colorClass = 'bg-blue-50';
+                else if (mapping.omschrijving === i) colorClass = 'bg-green-50';
+                else if (mapping.aantal === i) colorClass = 'bg-orange-50';
+                else if (mapping.totaal === i) colorClass = 'bg-purple-50';
                 td.className = `px-3 py-2 border-b text-gray-700 text-xs ${colorClass}`;
                 td.textContent = row[i] || '';
                 tr.appendChild(td);
@@ -342,21 +552,38 @@
             tbody.appendChild(tr);
         }
     }
-
-    function renderExtractedData() {
-        const tbody = document.getElementById('extractedBody');
-        const rowCountSpan = document.getElementById('rowCount');
+    
+    function getMappingName(type) {
+        const names = { artikel: 'ARTIKEL', omschrijving: 'OMSCHRIJVING', aantal: 'AANTAL', totaal: 'TOTAAL' };
+        return names[type] || '';
+    }
+    
+    function applyMappingAndRender() {
+        finalData = [];
+        for (let row of ocrRows) {
+            const item = {
+                artikel: mapping.artikel !== -1 ? row[mapping.artikel] : '',
+                omschrijving: mapping.omschrijving !== -1 ? row[mapping.omschrijving] : '',
+                aantal: mapping.aantal !== -1 ? row[mapping.aantal] : '',
+                totaal: mapping.totaal !== -1 ? row[mapping.totaal] : ''
+            };
+            if (item.artikel || item.omschrijving) {
+                finalData.push(item);
+            }
+        }
+        renderFinalResults();
+    }
+    
+    function renderFinalResults() {
+        const tbody = document.getElementById('finalResultsBody');
         
-        if (!extractedData.length) {
-            tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Définissez le mapping en cliquant sur les en-têtes</td></tr>';
-            rowCountSpan.textContent = '0 ligne(s)';
+        if (!finalData.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-gray-400">Aucune donnée. Sélectionnez les colonnes.</td></tr>';
             return;
         }
         
-        rowCountSpan.textContent = `${extractedData.length} ligne(s)`;
         tbody.innerHTML = '';
-        
-        extractedData.forEach((row, idx) => {
+        finalData.forEach((row, idx) => {
             const tr = document.createElement('tr');
             tr.className = 'hover:bg-gray-50';
             tr.innerHTML = `
@@ -366,177 +593,48 @@
                 <td class="px-4 py-3 text-sm font-mono">${escapeHtml(row.totaal ? '€ ' + row.totaal : '-')}</td>
                 <td class="px-4 py-3 whitespace-nowrap">
                     <div class="flex gap-2">
-                        <button class="copy-artikel bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Art.</button>
-                        <button class="copy-desc bg-green-500 hover:bg-green-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Desc.</button>
-                        <button class="copy-qty bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Aantal</button>
-                        <button class="copy-total bg-purple-500 hover:bg-purple-600 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Totaal</button>
+                        <button class="copy-artikel bg-blue-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Art.</button>
+                        <button class="copy-desc bg-green-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Desc.</button>
+                        <button class="copy-qty bg-orange-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Aantal</button>
+                        <button class="copy-total bg-purple-500 text-white text-xs px-2 py-1 rounded" data-idx="${idx}">📋 Totaal</button>
                     </div>
                 </td>
             `;
             tbody.appendChild(tr);
         });
         
+        document.getElementById('step4').classList.remove('hidden');
+        
+        // Attacher événements copie
         document.querySelectorAll('.copy-artikel').forEach(btn => {
-            btn.onclick = () => copyToClipboard(extractedData[btn.dataset.idx].artikel, 'Artikel');
+            btn.onclick = () => copyToClipboard(finalData[btn.dataset.idx].artikel, 'Artikel');
         });
         document.querySelectorAll('.copy-desc').forEach(btn => {
-            btn.onclick = () => copyToClipboard(extractedData[btn.dataset.idx].omschrijving, 'Description');
+            btn.onclick = () => copyToClipboard(finalData[btn.dataset.idx].omschrijving, 'Description');
         });
         document.querySelectorAll('.copy-qty').forEach(btn => {
-            btn.onclick = () => copyToClipboard(extractedData[btn.dataset.idx].aantal, 'Quantité');
+            btn.onclick = () => copyToClipboard(finalData[btn.dataset.idx].aantal, 'Quantité');
         });
         document.querySelectorAll('.copy-total').forEach(btn => {
-            btn.onclick = () => copyToClipboard(extractedData[btn.dataset.idx].totaal, 'Total');
+            btn.onclick = () => copyToClipboard(finalData[btn.dataset.idx].totaal, 'Total');
         });
     }
     
-    function escapeHtml(str) { return str ? str.replace(/[&<>]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) : ''; }
-
-    async function runOcrOnImage(imageDataUrl) {
-        return new Promise((resolve, reject) => {
-            Tesseract.recognize(imageDataUrl, 'nld', { logger: m => console.log(m), tessedit_pageseg_mode: 6 })
-                .then(({ data: { text } }) => resolve(text)).catch(reject);
-        });
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, (m) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
     }
-
-    // Afficher la première page du PDF
-    async function showPdfPreview(file) {
-        const arrayBuffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const page = await pdf.getPage(1);
-        const viewport = page.getViewport({ scale: 1.2 });
-        const canvas = document.getElementById('pdfCanvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-    }
-
-    async function processFile(file) {
-        const isPdf = file.type === 'application/pdf';
-        const isImage = file.type.startsWith('image/');
-        if (!isPdf && !isImage) { showToast("Format non supporté", true); return; }
-        
-        const statusDiv = document.getElementById('status');
-        statusDiv.classList.remove('hidden');
-        statusDiv.innerHTML = '<span class="text-blue-600">⏳ Traitement en cours...</span>';
-        
-        try {
-            // Aperçu
-            if (isPdf) {
-                await showPdfPreview(file);
-            } else {
-                const reader = new FileReader();
-                const dataUrl = await new Promise((resolve) => { reader.onload = e => resolve(e.target.result); reader.readAsDataURL(file); });
-                const canvas = document.getElementById('pdfCanvas');
-                const img = new Image();
-                img.onload = () => { canvas.width = img.width; canvas.height = img.height; canvas.getContext('2d').drawImage(img, 0, 0); };
-                img.src = dataUrl;
-            }
-            
-            let imagesDataUrls = [];
-            
-            if (isImage) {
-                const reader = new FileReader();
-                const dataUrl = await new Promise((resolve) => { reader.onload = e => resolve(e.target.result); reader.readAsDataURL(file); });
-                imagesDataUrls.push(dataUrl);
-            } else {
-                const arrayBuffer = await file.arrayBuffer();
-                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-                const numPages = Math.min(pdf.numPages, 3);
-                for (let i = 1; i <= numPages; i++) {
-                    statusDiv.innerHTML = `<span class="text-blue-600">📄 Page ${i}/${numPages}...</span>`;
-                    const page = await pdf.getPage(i);
-                    const viewport = page.getViewport({ scale: 2.5 });
-                    const canvas = document.createElement('canvas');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-                    imagesDataUrls.push(canvas.toDataURL());
-                }
-            }
-            
-            let fullText = '';
-            for (let i = 0; i < imagesDataUrls.length; i++) {
-                statusDiv.innerHTML = `<span class="text-blue-600">🔍 OCR page ${i+1}/${imagesDataUrls.length}...</span>`;
-                fullText += await runOcrOnImage(imagesDataUrls[i]) + '\n';
-            }
-            
-            const parsed = parseOcrToTable(fullText);
-            headers = parsed.headers;
-            parsedRows = parsed.rows;
-            
-            if (!parsedRows.length) {
-                statusDiv.innerHTML = '<span class="text-red-600">❌ Aucune donnée détectée</span>';
-                return;
-            }
-            
-            mapping = autoDetectMapping();
-            applyMappingAndRender();
-            renderRawTable();
-            
-            document.getElementById('step2').classList.remove('hidden');
-            statusDiv.innerHTML = `<span class="text-green-600">✅ ${parsedRows.length} lignes trouvées ! Maintenant, cliquez sur les en-têtes du tableau</span>`;
-            
-        } catch (err) {
-            console.error(err);
-            showToast("Erreur: " + err.message, true);
+    
+    // Export CSV
+    function exportCSV() {
+        if (!finalData.length) {
+            showToast("Aucune donnée à exporter", true);
+            return;
         }
-    }
-    
-    // Événements
-    document.getElementById('uploadZone').onclick = () => document.getElementById('fileInput').click();
-    document.getElementById('fileInput').onchange = (e) => { if (e.target.files[0]) processFile(e.target.files[0]); };
-    
-    document.getElementById('autoDetectBtn').onclick = () => {
-        mapping = autoDetectMapping();
-        applyMappingAndRender();
-        renderRawTable();
-        showToast("Détection automatique appliquée");
-    };
-    
-    document.getElementById('mapArtikelBtn').onclick = () => { 
-        waitingForMapping = 'artikel'; 
-        const instr = document.getElementById('mappingInstruction');
-        instr.classList.remove('hidden');
-        instr.className = 'p-3 rounded-lg mb-4 text-center font-medium bg-blue-100 text-blue-800';
-        instr.innerHTML = '🔵 Cliquez sur la colonne ARTICLE (en-tête grise) dans le tableau ci-dessous !';
-        showToast("Cliquez maintenant sur l'en-tête de la colonne ARTICLE dans le tableau");
-    };
-    document.getElementById('mapDescBtn').onclick = () => { 
-        waitingForMapping = 'omschrijving'; 
-        const instr = document.getElementById('mappingInstruction');
-        instr.classList.remove('hidden');
-        instr.className = 'p-3 rounded-lg mb-4 text-center font-medium bg-green-100 text-green-800';
-        instr.innerHTML = '🟢 Cliquez sur la colonne OMSCHRIJVING (en-tête grise) dans le tableau ci-dessous !';
-        showToast("Cliquez maintenant sur l'en-tête de la colonne DESCRIPTION");
-    };
-    document.getElementById('mapQtyBtn').onclick = () => { 
-        waitingForMapping = 'aantal'; 
-        const instr = document.getElementById('mappingInstruction');
-        instr.classList.remove('hidden');
-        instr.className = 'p-3 rounded-lg mb-4 text-center font-medium bg-orange-100 text-orange-800';
-        instr.innerHTML = '🟠 Cliquez sur la colonne AANTAL (en-tête grise) dans le tableau ci-dessous !';
-        showToast("Cliquez maintenant sur l'en-tête de la colonne QUANTITÉ");
-    };
-    document.getElementById('mapTotalBtn').onclick = () => { 
-        waitingForMapping = 'totaal'; 
-        const instr = document.getElementById('mappingInstruction');
-        instr.classList.remove('hidden');
-        instr.className = 'p-3 rounded-lg mb-4 text-center font-medium bg-purple-100 text-purple-800';
-        instr.innerHTML = '🟣 Cliquez sur la colonne TOTAAL (en-tête grise) dans le tableau ci-dessous !';
-        showToast("Cliquez maintenant sur l'en-tête de la colonne TOTAL");
-    };
-    document.getElementById('clearMappingBtn').onclick = () => { 
-        mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 }; 
-        applyMappingAndRender(); 
-        renderRawTable(); 
-        showToast("Mapping effacé");
-    };
-    
-    document.getElementById('exportAllBtn').onclick = () => {
-        if (!extractedData.length) { showToast("Aucune donnée", true); return; }
         let csv = "\uFEFFArtikelnummer;Omschrijving;Aantal;Totaal\n";
-        extractedData.forEach(row => { csv += `"${(row.artikel||'').replace(/"/g,'""')}";"${(row.omschrijving||'').replace(/"/g,'""')}";"${row.aantal||''}";"${row.totaal||''}"\n`; });
+        finalData.forEach(row => {
+            csv += `"${(row.artikel||'').replace(/"/g,'""')}";"${(row.omschrijving||'').replace(/"/g,'""')}";"${row.aantal||''}";"${row.totaal||''}"\n`;
+        });
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -544,11 +642,48 @@
         link.click();
         URL.revokeObjectURL(link.href);
         showToast("CSV exporté");
+    }
+    
+    // Événements UI
+    document.getElementById('uploadZone').onclick = () => document.getElementById('fileInput').click();
+    document.getElementById('fileInput').onchange = (e) => {
+        if (e.target.files[0]) loadPDF(e.target.files[0]);
     };
     
-    document.getElementById('copyAllArtikelBtn').onclick = () => {
-        const artikelList = extractedData.map(r => r.artikel).filter(a => a).join('\n');
-        if (artikelList) copyToClipboard(artikelList, `${extractedData.length} articles`);
+    document.getElementById('extractTableBtn').onclick = extractSelectedArea;
+    
+    document.getElementById('mapArtikelBtn').onclick = () => {
+        waitingForMapping = 'artikel';
+        document.getElementById('mappingStatus').innerHTML = '🔵 Cliquez maintenant sur la colonne ARTIKEL dans le tableau ci-dessus';
+        showToast("Cliquez sur la colonne ARTIKEL dans le tableau");
+    };
+    document.getElementById('mapDescBtn').onclick = () => {
+        waitingForMapping = 'omschrijving';
+        document.getElementById('mappingStatus').innerHTML = '🟢 Cliquez maintenant sur la colonne OMSCHRIJVING dans le tableau ci-dessus';
+        showToast("Cliquez sur la colonne OMSCHRIJVING dans le tableau");
+    };
+    document.getElementById('mapQtyBtn').onclick = () => {
+        waitingForMapping = 'aantal';
+        document.getElementById('mappingStatus').innerHTML = '🟠 Cliquez maintenant sur la colonne AANTAL dans le tableau ci-dessus';
+        showToast("Cliquez sur la colonne AANTAL dans le tableau");
+    };
+    document.getElementById('mapTotalBtn').onclick = () => {
+        waitingForMapping = 'totaal';
+        document.getElementById('mappingStatus').innerHTML = '🟣 Cliquez maintenant sur la colonne TOTAAL dans le tableau ci-dessus';
+        showToast("Cliquez sur la colonne TOTAAL dans le tableau");
+    };
+    document.getElementById('resetMappingBtn').onclick = () => {
+        mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 };
+        applyMappingAndRender();
+        renderOcrTable();
+        document.getElementById('mappingStatus').innerHTML = '⚠️ Mapping réinitialisé. Cliquez sur un bouton puis sur une colonne.';
+        showToast("Mapping réinitialisé");
+    };
+    
+    document.getElementById('exportCsvBtn').onclick = exportCSV;
+    document.getElementById('copyAllBtn').onclick = () => {
+        const artikelList = finalData.map(r => r.artikel).filter(a => a).join('\n');
+        if (artikelList) copyToClipboard(artikelList, `${finalData.length} articles`);
         else showToast("Aucun article", true);
     };
     
@@ -556,7 +691,13 @@
     const zone = document.getElementById('uploadZone');
     zone.ondragover = (e) => { e.preventDefault(); zone.classList.add('bg-blue-50'); };
     zone.ondragleave = () => zone.classList.remove('bg-blue-50');
-    zone.ondrop = (e) => { e.preventDefault(); zone.classList.remove('bg-blue-50'); const file = e.dataTransfer.files[0]; if (file) processFile(file); };
+    zone.ondrop = (e) => {
+        e.preventDefault();
+        zone.classList.remove('bg-blue-50');
+        const file = e.dataTransfer.files[0];
+        if (file && file.type === 'application/pdf') loadPDF(file);
+        else showToast("Veuillez déposer un PDF", true);
+    };
 </script>
 </body>
 </html>
