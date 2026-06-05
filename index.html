@@ -23,23 +23,41 @@
             background-color: rgba(59, 130, 246, 0.2);
             cursor: move;
             display: none;
+            user-select: none;
+        }
+        .selection-overlay.active {
+            display: block;
         }
         .selection-overlay .resize-handle {
             position: absolute;
             width: 10px;
             height: 10px;
             background-color: #3b82f6;
-            border: 1px solid white;
+            border: 2px solid white;
+            cursor: pointer;
         }
-        .resize-handle.nw { top: -5px; left: -5px; cursor: nw-resize; }
-        .resize-handle.ne { top: -5px; right: -5px; cursor: ne-resize; }
-        .resize-handle.sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-        .resize-handle.se { bottom: -5px; right: -5px; cursor: se-resize; }
-        .highlight-column {
-            transition: all 0.2s;
+        .resize-handle.nw { top: -6px; left: -6px; cursor: nw-resize; }
+        .resize-handle.ne { top: -6px; right: -6px; cursor: ne-resize; }
+        .resize-handle.sw { bottom: -6px; left: -6px; cursor: sw-resize; }
+        .resize-handle.se { bottom: -6px; right: -6px; cursor: se-resize; }
+        .overlay-locked {
+            border: 2px solid #10b981 !important;
+            background-color: rgba(16, 185, 129, 0.1) !important;
         }
-        .col-selected {
-            background-color: #fef08a !important;
+        .step-indicator {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .step-active {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .step-completed {
+            background-color: #10b981;
+            color: white;
         }
     </style>
 </head>
@@ -48,14 +66,14 @@
 <div class="max-w-7xl mx-auto">
     <!-- En-tête -->
     <div class="bg-white rounded-2xl shadow-xl p-6 mb-6">
-        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 OCR - Sélection visuelle du tableau</h1>
-        <p class="text-gray-600">1️⃣ Chargez le PDF | 2️⃣ Dessinez un rectangle autour du tableau | 3️⃣ OCR extrait les données</p>
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">📄 OCR - Sélection visuelle étape par étape</h1>
+        <p class="text-gray-600">📁 Chargez le PDF → 🎯 Cadrez le tableau → ✏️ Affinez la sélection → 🔍 OCR extrait les données → 📊 Résultats en tableau</p>
     </div>
 
     <!-- Étape 1 : Upload -->
     <div class="bg-white rounded-xl shadow-md p-6 mb-6">
         <div class="flex items-center gap-3 mb-4">
-            <div class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">1</div>
+            <span class="step-indicator step-active">1</span>
             <h2 class="font-semibold text-gray-800">Chargez votre PDF</h2>
         </div>
         
@@ -69,26 +87,40 @@
         <div id="status" class="mt-3 text-sm text-gray-500 hidden"></div>
     </div>
 
-    <!-- Étape 2 : Sélection du tableau -->
+    <!-- Étape 2 : Affichage PDF -->
     <div id="step2" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
         <div class="flex items-center gap-3 mb-4">
-            <div class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">2</div>
-            <h2 class="font-semibold text-gray-800">Dessinez le cadre autour du tableau</h2>
+            <span class="step-indicator step-active">2</span>
+            <h2 class="font-semibold text-gray-800">📄 Affichage du PDF</h2>
+        </div>
+        
+        <div class="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4">
+            <p class="text-sm text-blue-800">Le PDF est chargé. Passez à l'étape suivante pour cadrer le tableau.</p>
+        </div>
+        
+        <div class="flex justify-center max-h-64 overflow-auto border rounded-lg">
+            <canvas id="pdfCanvas" class="shadow"></canvas>
+        </div>
+    </div>
+
+    <!-- Étape 3 : Sélection initiale du tableau -->
+    <div id="step3" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="step-indicator step-active">3</span>
+            <h2 class="font-semibold text-gray-800">🎯 Cadrez le tableau</h2>
         </div>
         
         <div class="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
             <p class="text-sm font-medium text-yellow-800">✏️ Instructions :</p>
             <ul class="text-xs text-yellow-700 mt-1 list-disc list-inside">
-                <li><span class="font-bold">Cliquez-glissez</span> pour dessiner un rectangle autour du tableau</li>
-                <li>Vous pouvez <span class="font-bold">redimensionner</span> le rectangle avec les poignées</li>
-                <li>Vous pouvez <span class="font-bold">déplacer</span> le rectangle en cliquant-glissant à l'intérieur</li>
-                <li>Cliquez sur <span class="font-bold">"Extraire le tableau"</span> pour lancer l'OCR</li>
+                <li><span class="font-bold">Cliquez-glissez</span> pour dessiner un rectangle autour du tableau complet</li>
+                <li>Une fois satisfait, cliquez sur <span class="font-bold">"Valider cette sélection"</span></li>
             </ul>
         </div>
         
         <div class="flex justify-center">
             <div class="canvas-container">
-                <canvas id="pdfCanvas" class="border rounded-lg shadow"></canvas>
+                <canvas id="pdfCanvas3" class="border rounded-lg shadow"></canvas>
                 <div id="selectionOverlay" class="selection-overlay">
                     <div class="resize-handle nw"></div>
                     <div class="resize-handle ne"></div>
@@ -98,18 +130,58 @@
             </div>
         </div>
         
-        <div class="flex justify-center mt-4">
-            <button id="extractTableBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow">
-                🔍 Extraire le tableau sélectionné
+        <div class="flex justify-center gap-3 mt-4">
+            <button id="validateStep3Btn" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold shadow">
+                ✅ Valider cette sélection
+            </button>
+            <button id="cancelStep3Btn" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold shadow">
+                ❌ Annuler
             </button>
         </div>
     </div>
 
-    <!-- Étape 3 : Texte OCR extrait + Mapping -->
-    <div id="step3" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
+    <!-- Étape 4 : Affinage de la sélection -->
+    <div id="step4" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
         <div class="flex items-center gap-3 mb-4">
-            <div class="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold">3</div>
-            <h2 class="font-semibold text-gray-800">Texte extrait - Sélectionnez les colonnes</h2>
+            <span class="step-indicator step-active">4</span>
+            <h2 class="font-semibold text-gray-800">✏️ Affinez la sélection du tableau</h2>
+        </div>
+        
+        <div class="bg-green-50 border-l-4 border-green-400 p-3 mb-4">
+            <p class="text-sm font-medium text-green-800">Aperçu du tableau cadré :</p>
+            <ul class="text-xs text-green-700 mt-1 list-disc list-inside">
+                <li>Redimensionnez le cadre avec les <span class="font-bold">poignées</span> pour affiner</li>
+                <li>Vous pouvez aussi <span class="font-bold">déplacer</span> le rectangle en cliquant dessus</li>
+            </ul>
+        </div>
+        
+        <div class="flex justify-center">
+            <div class="canvas-container">
+                <canvas id="pdfCanvas4" class="border rounded-lg shadow"></canvas>
+                <div id="selectionOverlay2" class="selection-overlay">
+                    <div class="resize-handle nw"></div>
+                    <div class="resize-handle ne"></div>
+                    <div class="resize-handle sw"></div>
+                    <div class="resize-handle se"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="flex justify-center gap-3 mt-4">
+            <button id="launchOcrBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-semibold shadow">
+                🔍 Lancer l'OCR
+            </button>
+            <button id="backStep4Btn" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold shadow">
+                ⬅️ Retour
+            </button>
+        </div>
+    </div>
+
+    <!-- Étape 5 : Texte OCR extrait + Mapping -->
+    <div id="step5" class="bg-white rounded-xl shadow-md p-6 mb-6 hidden">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="step-indicator step-active">5</span>
+            <h2 class="font-semibold text-gray-800">📊 Résultats OCR - Sélectionnez les colonnes</h2>
         </div>
         
         <div class="flex flex-wrap gap-3 mb-4">
@@ -149,8 +221,8 @@
         </div>
     </div>
 
-    <!-- Étape 4 : Résultats finaux -->
-    <div id="step4" class="bg-white rounded-xl shadow-md overflow-hidden hidden">
+    <!-- Étape 6 : Résultats finaux -->
+    <div id="step6" class="bg-white rounded-xl shadow-md overflow-hidden hidden">
         <div class="bg-gray-50 px-6 py-3 border-b flex justify-between items-center">
             <h2 class="font-semibold text-gray-700">✅ Données extraites (copiables)</h2>
             <div class="flex gap-2">
@@ -182,21 +254,35 @@
 <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
+    // État global
     let pdfDoc = null;
     let currentPage = 1;
     let scale = 1.5;
     let viewport = null;
-    let canvas = document.getElementById('pdfCanvas');
-    let ctx = canvas.getContext('2d');
     
-    // Sélection rectangle
+    // Canvases
+    let canvas3 = document.getElementById('pdfCanvas3');
+    let canvas4 = document.getElementById('pdfCanvas4');
+    let ctx3 = null;
+    let ctx4 = null;
+    
+    // Sélection rectangle - Étape 3
     let selectionOverlay = document.getElementById('selectionOverlay');
-    let isDrawing = false;
-    let isDragging = false;
-    let isResizing = false;
-    let resizeDir = null;
-    let startX, startY;
-    let rect = { x: 0, y: 0, w: 0, h: 0 };
+    let isDrawing3 = false;
+    let isDragging3 = false;
+    let isResizing3 = false;
+    let resizeDir3 = null;
+    let startX3, startY3;
+    let rect3 = { x: 0, y: 0, w: 0, h: 0 };
+    
+    // Sélection rectangle - Étape 4
+    let selectionOverlay2 = document.getElementById('selectionOverlay2');
+    let isDrawing4 = false;
+    let isDragging4 = false;
+    let isResizing4 = false;
+    let resizeDir4 = null;
+    let startX4, startY4;
+    let rect4 = { x: 0, y: 0, w: 0, h: 0 };
     
     // Données OCR
     let ocrHeaders = [];
@@ -228,164 +314,318 @@
         statusDiv.classList.remove('hidden');
         statusDiv.innerHTML = '<span class="text-blue-600">⏳ Chargement du PDF...</span>';
         
-        const arrayBuffer = await file.arrayBuffer();
-        pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-        const page = await pdfDoc.getPage(currentPage);
-        viewport = page.getViewport({ scale: scale });
-        
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        
-        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
-        
-        statusDiv.innerHTML = '<span class="text-green-600">✅ PDF chargé ! Dessinez le cadre autour du tableau</span>';
-        document.getElementById('step2').classList.remove('hidden');
-        
-        // Initialiser la sélection
-        initSelection();
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            const page = await pdfDoc.getPage(currentPage);
+            viewport = page.getViewport({ scale: scale });
+            
+            // Afficher le PDF en étape 2
+            const canvas2 = document.getElementById('pdfCanvas');
+            const ctx2 = canvas2.getContext('2d');
+            canvas2.width = viewport.width;
+            canvas2.height = viewport.height;
+            await page.render({ canvasContext: ctx2, viewport: viewport }).promise;
+            
+            statusDiv.innerHTML = '<span class="text-green-600">✅ PDF chargé ! Passez à l\'étape 3 pour cadrer le tableau</span>';
+            document.getElementById('step2').classList.remove('hidden');
+            
+            // Préparer étape 3
+            initStep3();
+            
+        } catch (err) {
+            console.error(err);
+            statusDiv.innerHTML = '<span class="text-red-600">❌ Erreur chargement PDF</span>';
+            showToast("Erreur PDF: " + err.message, true);
+        }
     }
     
-    function initSelection() {
-        const container = document.querySelector('.canvas-container');
-        const canvasRect = canvas.getBoundingClientRect();
+    // === ÉTAPE 3 : Sélection initiale ===
+    function initStep3() {
+        ctx3 = canvas3.getContext('2d');
+        canvas3.width = viewport.width;
+        canvas3.height = viewport.height;
+        
+        // Copier l'image du PDF
+        const canvas2 = document.getElementById('pdfCanvas');
+        ctx3.drawImage(canvas2, 0, 0);
         
         selectionOverlay.style.display = 'none';
-        rect = { x: 0, y: 0, w: 0, h: 0 };
+        rect3 = { x: 0, y: 0, w: 0, h: 0 };
         
-        // Événements souris
-        canvas.addEventListener('mousedown', onMouseDown);
-        canvas.addEventListener('mousemove', onMouseMove);
-        canvas.addEventListener('mouseup', onMouseUp);
+        // Événements souris pour étape 3
+        canvas3.addEventListener('mousedown', onMouseDown3);
+        canvas3.addEventListener('mousemove', onMouseMove3);
+        canvas3.addEventListener('mouseup', onMouseUp3);
         
-        // Poignées de redimensionnement
-        setupResizeHandles();
+        setupResizeHandles3();
+        document.getElementById('step3').classList.remove('hidden');
     }
     
-    function setupResizeHandles() {
-        const handles = document.querySelectorAll('.resize-handle');
+    function setupResizeHandles3() {
+        const handles = document.querySelectorAll('#selectionOverlay .resize-handle');
         handles.forEach(handle => {
             handle.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
-                isResizing = true;
-                resizeDir = handle.className.split(' ')[1];
-                startX = e.clientX;
-                startY = e.clientY;
-                document.addEventListener('mousemove', onResize);
-                document.addEventListener('mouseup', stopResize);
+                isResizing3 = true;
+                resizeDir3 = handle.className.split(' ')[1];
+                startX3 = e.clientX;
+                startY3 = e.clientY;
+                document.addEventListener('mousemove', onResize3);
+                document.addEventListener('mouseup', stopResize3);
             });
         });
         
-        // Déplacer la sélection
         selectionOverlay.addEventListener('mousedown', (e) => {
             if (e.target === selectionOverlay || e.target.parentNode === selectionOverlay) {
                 e.stopPropagation();
-                isDragging = true;
-                startX = e.clientX - rect.x;
-                startY = e.clientY - rect.y;
-                document.addEventListener('mousemove', onDrag);
-                document.addEventListener('mouseup', stopDrag);
+                isDragging3 = true;
+                startX3 = e.clientX - rect3.x;
+                startY3 = e.clientY - rect3.y;
+                document.addEventListener('mousemove', onDrag3);
+                document.addEventListener('mouseup', stopDrag3);
             }
         });
     }
     
-    function onMouseDown(e) {
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / canvasRect.width;
-        const scaleY = canvas.height / canvasRect.height;
+    function onMouseDown3(e) {
+        const canvasRect = canvas3.getBoundingClientRect();
+        const scaleX = canvas3.width / canvasRect.width;
+        const scaleY = canvas3.height / canvasRect.height;
         
-        startX = (e.clientX - canvasRect.left) * scaleX;
-        startY = (e.clientY - canvasRect.top) * scaleY;
-        isDrawing = true;
+        startX3 = (e.clientX - canvasRect.left) * scaleX;
+        startY3 = (e.clientY - canvasRect.top) * scaleY;
+        isDrawing3 = true;
         
         selectionOverlay.style.display = 'block';
-        rect = { x: startX, y: startY, w: 0, h: 0 };
-        updateOverlay();
+        rect3 = { x: startX3, y: startY3, w: 0, h: 0 };
+        updateOverlay3();
     }
     
-    function onMouseMove(e) {
-        if (!isDrawing) return;
+    function onMouseMove3(e) {
+        if (!isDrawing3) return;
         
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / canvasRect.width;
-        const scaleY = canvas.height / canvasRect.height;
+        const canvasRect = canvas3.getBoundingClientRect();
+        const scaleX = canvas3.width / canvasRect.width;
+        const scaleY = canvas3.height / canvasRect.height;
         
         const currentX = (e.clientX - canvasRect.left) * scaleX;
         const currentY = (e.clientY - canvasRect.top) * scaleY;
         
-        rect.w = currentX - rect.x;
-        rect.h = currentY - rect.y;
+        rect3.w = currentX - rect3.x;
+        rect3.h = currentY - rect3.y;
         
-        updateOverlay();
+        updateOverlay3();
     }
     
-    function onMouseUp() {
-        isDrawing = false;
+    function onMouseUp3() {
+        isDrawing3 = false;
     }
     
-    function onResize(e) {
-        if (!isResizing) return;
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / canvasRect.width;
-        const scaleY = canvas.height / canvasRect.height;
+    function onResize3(e) {
+        if (!isResizing3) return;
+        const canvasRect = canvas3.getBoundingClientRect();
+        const scaleX = canvas3.width / canvasRect.width;
+        const scaleY = canvas3.height / canvasRect.height;
         
-        const dx = (e.clientX - startX) * scaleX;
-        const dy = (e.clientY - startY) * scaleY;
+        const dx = (e.clientX - startX3) * scaleX;
+        const dy = (e.clientY - startY3) * scaleY;
         
-        switch(resizeDir) {
-            case 'nw': rect.x += dx; rect.y += dy; rect.w -= dx; rect.h -= dy; break;
-            case 'ne': rect.y += dy; rect.w += dx; rect.h -= dy; break;
-            case 'sw': rect.x += dx; rect.w -= dx; rect.h += dy; break;
-            case 'se': rect.w += dx; rect.h += dy; break;
+        switch(resizeDir3) {
+            case 'nw': rect3.x += dx; rect3.y += dy; rect3.w -= dx; rect3.h -= dy; break;
+            case 'ne': rect3.y += dy; rect3.w += dx; rect3.h -= dy; break;
+            case 'sw': rect3.x += dx; rect3.w -= dx; rect3.h += dy; break;
+            case 'se': rect3.w += dx; rect3.h += dy; break;
         }
         
-        if (rect.w < 10) rect.w = 10;
-        if (rect.h < 10) rect.h = 10;
+        if (rect3.w < 10) rect3.w = 10;
+        if (rect3.h < 10) rect3.h = 10;
         
-        startX = e.clientX;
-        startY = e.clientY;
-        updateOverlay();
+        startX3 = e.clientX;
+        startY3 = e.clientY;
+        updateOverlay3();
     }
     
-    function stopResize() {
-        isResizing = false;
-        document.removeEventListener('mousemove', onResize);
+    function stopResize3() {
+        isResizing3 = false;
+        document.removeEventListener('mousemove', onResize3);
     }
     
-    function onDrag(e) {
-        if (!isDragging) return;
-        const canvasRect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / canvasRect.width;
-        const scaleY = canvas.height / canvasRect.height;
+    function onDrag3(e) {
+        if (!isDragging3) return;
+        const canvasRect = canvas3.getBoundingClientRect();
+        const scaleX = canvas3.width / canvasRect.width;
+        const scaleY = canvas3.height / canvasRect.height;
         
-        rect.x = (e.clientX - startX);
-        rect.y = (e.clientY - startY);
+        rect3.x = (e.clientX - startX3);
+        rect3.y = (e.clientY - startY3);
         
-        updateOverlay();
+        updateOverlay3();
     }
     
-    function stopDrag() {
-        isDragging = false;
-        document.removeEventListener('mousemove', onDrag);
+    function stopDrag3() {
+        isDragging3 = false;
+        document.removeEventListener('mousemove', onDrag3);
     }
     
-    function updateOverlay() {
+    function updateOverlay3() {
         const container = document.querySelector('.canvas-container');
-        const canvasRect = canvas.getBoundingClientRect();
+        const canvasRect = canvas3.getBoundingClientRect();
         const containerRect = container.getBoundingClientRect();
-        const scaleX = canvasRect.width / canvas.width;
-        const scaleY = canvasRect.height / canvas.height;
+        const scaleX = canvasRect.width / canvas3.width;
+        const scaleY = canvasRect.height / canvas3.height;
         
-        selectionOverlay.style.left = (rect.x * scaleX) + 'px';
-        selectionOverlay.style.top = (rect.y * scaleY) + 'px';
-        selectionOverlay.style.width = (rect.w * scaleX) + 'px';
-        selectionOverlay.style.height = (rect.h * scaleY) + 'px';
+        selectionOverlay.style.left = (rect3.x * scaleX) + 'px';
+        selectionOverlay.style.top = (rect3.y * scaleY) + 'px';
+        selectionOverlay.style.width = (rect3.w * scaleX) + 'px';
+        selectionOverlay.style.height = (rect3.h * scaleY) + 'px';
         selectionOverlay.style.display = 'block';
     }
     
-    // Extraire la zone sélectionnée avec OCR
-    async function extractSelectedArea() {
-        if (rect.w === 0 || rect.h === 0) {
-            showToast("Veuillez d'abord dessiner un rectangle autour du tableau", true);
+    // Valider étape 3 et passer à étape 4
+    function validateStep3() {
+        if (rect3.w === 0 || rect3.h === 0) {
+            showToast("Veuillez d'abord dessiner un rectangle", true);
+            return;
+        }
+        
+        // Copier la zone sélectionnée en canvas4
+        ctx4 = canvas4.getContext('2d');
+        
+        let x = Math.max(0, rect3.x);
+        let y = Math.max(0, rect3.y);
+        let w = Math.min(canvas3.width - x, rect3.w);
+        let h = Math.min(canvas3.height - y, rect3.h);
+        
+        canvas4.width = canvas3.width;
+        canvas4.height = canvas3.height;
+        
+        // Copier l'image du canvas3
+        ctx4.drawImage(canvas3, 0, 0);
+        
+        // Initialiser rect4 = rect3 pour affinage
+        rect4 = { ...rect3 };
+        
+        // Setup étape 4
+        initStep4();
+        
+        // Masquer étape 3, afficher étape 4
+        document.getElementById('step3').classList.add('hidden');
+        document.getElementById('step4').classList.remove('hidden');
+        
+        showToast("✅ Sélection validée. Affinez maintenant.");
+    }
+    
+    // === ÉTAPE 4 : Affinage de la sélection ===
+    function initStep4() {
+        selectionOverlay2.style.display = 'none';
+        
+        // Événements souris pour étape 4
+        canvas4.addEventListener('mousedown', onMouseDown4);
+        canvas4.addEventListener('mousemove', onMouseMove4);
+        canvas4.addEventListener('mouseup', onMouseUp4);
+        
+        setupResizeHandles4();
+        updateOverlay4();
+    }
+    
+    function setupResizeHandles4() {
+        const handles = document.querySelectorAll('#selectionOverlay2 .resize-handle');
+        handles.forEach(handle => {
+            handle.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                isResizing4 = true;
+                resizeDir4 = handle.className.split(' ')[1];
+                startX4 = e.clientX;
+                startY4 = e.clientY;
+                document.addEventListener('mousemove', onResize4);
+                document.addEventListener('mouseup', stopResize4);
+            });
+        });
+        
+        selectionOverlay2.addEventListener('mousedown', (e) => {
+            if (e.target === selectionOverlay2 || e.target.parentNode === selectionOverlay2) {
+                e.stopPropagation();
+                isDragging4 = true;
+                startX4 = e.clientX - rect4.x;
+                startY4 = e.clientY - rect4.y;
+                document.addEventListener('mousemove', onDrag4);
+                document.addEventListener('mouseup', stopDrag4);
+            }
+        });
+    }
+    
+    function onMouseDown4(e) {
+        // Ne pas créer de nouvelle sélection en étape 4
+    }
+    
+    function onMouseMove4(e) {}
+    
+    function onMouseUp4() {}
+    
+    function onResize4(e) {
+        if (!isResizing4) return;
+        const canvasRect = canvas4.getBoundingClientRect();
+        const scaleX = canvas4.width / canvasRect.width;
+        const scaleY = canvas4.height / canvasRect.height;
+        
+        const dx = (e.clientX - startX4) * scaleX;
+        const dy = (e.clientY - startY4) * scaleY;
+        
+        switch(resizeDir4) {
+            case 'nw': rect4.x += dx; rect4.y += dy; rect4.w -= dx; rect4.h -= dy; break;
+            case 'ne': rect4.y += dy; rect4.w += dx; rect4.h -= dy; break;
+            case 'sw': rect4.x += dx; rect4.w -= dx; rect4.h += dy; break;
+            case 'se': rect4.w += dx; rect4.h += dy; break;
+        }
+        
+        if (rect4.w < 10) rect4.w = 10;
+        if (rect4.h < 10) rect4.h = 10;
+        
+        startX4 = e.clientX;
+        startY4 = e.clientY;
+        updateOverlay4();
+    }
+    
+    function stopResize4() {
+        isResizing4 = false;
+        document.removeEventListener('mousemove', onResize4);
+    }
+    
+    function onDrag4(e) {
+        if (!isDragging4) return;
+        const canvasRect = canvas4.getBoundingClientRect();
+        const scaleX = canvas4.width / canvasRect.width;
+        const scaleY = canvas4.height / canvasRect.height;
+        
+        rect4.x = (e.clientX - startX4);
+        rect4.y = (e.clientY - startY4);
+        
+        updateOverlay4();
+    }
+    
+    function stopDrag4() {
+        isDragging4 = false;
+        document.removeEventListener('mousemove', onDrag4);
+    }
+    
+    function updateOverlay4() {
+        const container = document.querySelector('#step4 .canvas-container');
+        const canvasRect = canvas4.getBoundingClientRect();
+        const scaleX = canvasRect.width / canvas4.width;
+        const scaleY = canvasRect.height / canvas4.height;
+        
+        selectionOverlay2.style.left = (rect4.x * scaleX) + 'px';
+        selectionOverlay2.style.top = (rect4.y * scaleY) + 'px';
+        selectionOverlay2.style.width = (rect4.w * scaleX) + 'px';
+        selectionOverlay2.style.height = (rect4.h * scaleY) + 'px';
+        selectionOverlay2.style.display = 'block';
+    }
+    
+    // === ÉTAPE 5 : Lancer l'OCR ===
+    async function launchOCR() {
+        if (rect4.w === 0 || rect4.h === 0) {
+            showToast("Veuillez d'abord définir une sélection", true);
             return;
         }
         
@@ -398,19 +638,15 @@
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
             
-            // S'assurer que les coordonnées sont dans les limites
-            let x = Math.max(0, rect.x);
-            let y = Math.max(0, rect.y);
-            let w = Math.min(canvas.width - x, rect.w);
-            let h = Math.min(canvas.height - y, rect.h);
+            let x = Math.max(0, rect4.x);
+            let y = Math.max(0, rect4.y);
+            let w = Math.min(canvas4.width - x, rect4.w);
+            let h = Math.min(canvas4.height - y, rect4.h);
             
             tempCanvas.width = w;
             tempCanvas.height = h;
             
-            // Copier la zone sélectionnée
-            const imageData = ctx.getImageData(x, y, w, h);
-            tempCanvas.width = w;
-            tempCanvas.height = h;
+            const imageData = ctx4.getImageData(x, y, w, h);
             tempCtx.putImageData(imageData, 0, 0);
             
             const imageUrl = tempCanvas.toDataURL();
@@ -427,8 +663,9 @@
             // Parser le texte en tableau
             parseOcrToTable(ocrText);
             
-            statusDiv.innerHTML = '<span class="text-green-600">✅ OCR terminé ! Maintenant, sélectionnez les colonnes</span>';
-            document.getElementById('step3').classList.remove('hidden');
+            statusDiv.innerHTML = '<span class="text-green-600">✅ OCR terminé ! Sélectionnez les colonnes</span>';
+            document.getElementById('step4').classList.add('hidden');
+            document.getElementById('step5').classList.remove('hidden');
             
         } catch (err) {
             console.error(err);
@@ -499,7 +736,7 @@
         const tbody = document.getElementById('tableBody');
         
         if (!ocrHeaders.length || !ocrRows.length) {
-            tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-red-500">❌ Aucune donnée détectée dans la zone sélectionnée. Essayez un rectangle plus grand.</td></tr>';
+            tbody.innerHTML = '<tr><td class="px-4 py-8 text-center text-red-500">❌ Aucune donnée détectée. Essayez un rectangle plus grand.</td></tr>';
             return;
         }
         
@@ -524,7 +761,6 @@
                     applyMappingAndRender();
                     renderOcrTable();
                     document.getElementById('mappingStatus').innerHTML = `✅ Colonne définie : ${h}`;
-                    showToast(`✅ Colonne "${h}" définie comme ${getMappingName(waitingForMapping)}`);
                 } else {
                     showToast("D'abord, cliquez sur un bouton (Artikel, Omschrijving, etc.)", false);
                 }
@@ -603,7 +839,7 @@
             tbody.appendChild(tr);
         });
         
-        document.getElementById('step4').classList.remove('hidden');
+        document.getElementById('step6').classList.remove('hidden');
         
         // Attacher événements copie
         document.querySelectorAll('.copy-artikel').forEach(btn => {
@@ -644,39 +880,54 @@
         showToast("CSV exporté");
     }
     
-    // Événements UI
+    // === Événements UI ===
     document.getElementById('uploadZone').onclick = () => document.getElementById('fileInput').click();
     document.getElementById('fileInput').onchange = (e) => {
         if (e.target.files[0]) loadPDF(e.target.files[0]);
     };
     
-    document.getElementById('extractTableBtn').onclick = extractSelectedArea;
+    document.getElementById('validateStep3Btn').onclick = validateStep3;
+    document.getElementById('cancelStep3Btn').onclick = () => {
+        document.getElementById('step3').classList.add('hidden');
+        canvas3.removeEventListener('mousedown', onMouseDown3);
+        canvas3.removeEventListener('mousemove', onMouseMove3);
+        canvas3.removeEventListener('mouseup', onMouseUp3);
+    };
+    
+    document.getElementById('launchOcrBtn').onclick = launchOCR;
+    document.getElementById('backStep4Btn').onclick = () => {
+        document.getElementById('step4').classList.add('hidden');
+        document.getElementById('step3').classList.remove('hidden');
+        canvas4.removeEventListener('mousedown', onMouseDown4);
+        canvas4.removeEventListener('mousemove', onMouseMove4);
+        canvas4.removeEventListener('mouseup', onMouseUp4);
+    };
     
     document.getElementById('mapArtikelBtn').onclick = () => {
         waitingForMapping = 'artikel';
-        document.getElementById('mappingStatus').innerHTML = '🔵 Cliquez maintenant sur la colonne ARTIKEL dans le tableau ci-dessus';
-        showToast("Cliquez sur la colonne ARTIKEL dans le tableau");
+        document.getElementById('mappingStatus').innerHTML = '🔵 Cliquez maintenant sur la colonne ARTIKEL';
+        showToast("Cliquez sur la colonne ARTIKEL");
     };
     document.getElementById('mapDescBtn').onclick = () => {
         waitingForMapping = 'omschrijving';
-        document.getElementById('mappingStatus').innerHTML = '🟢 Cliquez maintenant sur la colonne OMSCHRIJVING dans le tableau ci-dessus';
-        showToast("Cliquez sur la colonne OMSCHRIJVING dans le tableau");
+        document.getElementById('mappingStatus').innerHTML = '🟢 Cliquez sur la colonne OMSCHRIJVING';
+        showToast("Cliquez sur la colonne OMSCHRIJVING");
     };
     document.getElementById('mapQtyBtn').onclick = () => {
         waitingForMapping = 'aantal';
-        document.getElementById('mappingStatus').innerHTML = '🟠 Cliquez maintenant sur la colonne AANTAL dans le tableau ci-dessus';
-        showToast("Cliquez sur la colonne AANTAL dans le tableau");
+        document.getElementById('mappingStatus').innerHTML = '🟠 Cliquez sur la colonne AANTAL';
+        showToast("Cliquez sur la colonne AANTAL");
     };
     document.getElementById('mapTotalBtn').onclick = () => {
         waitingForMapping = 'totaal';
-        document.getElementById('mappingStatus').innerHTML = '🟣 Cliquez maintenant sur la colonne TOTAAL dans le tableau ci-dessus';
-        showToast("Cliquez sur la colonne TOTAAL dans le tableau");
+        document.getElementById('mappingStatus').innerHTML = '🟣 Cliquez sur la colonne TOTAAL';
+        showToast("Cliquez sur la colonne TOTAAL");
     };
     document.getElementById('resetMappingBtn').onclick = () => {
         mapping = { artikel: -1, omschrijving: -1, aantal: -1, totaal: -1 };
         applyMappingAndRender();
         renderOcrTable();
-        document.getElementById('mappingStatus').innerHTML = '⚠️ Mapping réinitialisé. Cliquez sur un bouton puis sur une colonne.';
+        document.getElementById('mappingStatus').innerHTML = '⚠️ Mapping réinitialisé';
         showToast("Mapping réinitialisé");
     };
     
