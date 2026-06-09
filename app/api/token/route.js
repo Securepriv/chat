@@ -11,8 +11,8 @@ const CHANNEL_ID = process.env.STREAM_CHANNEL_ID || 'private-client-support';
 // Les 2 seuls utilisateurs autorisés dans ce tchat privé.
 // Les mots de passe ne sont PAS ici: ils sont dans les variables Vercel.
 const PRIVATE_USERS = [
-  { id: 'client', name: 'Client', passwordEnv: 'CHAT_CLIENT_PASSWORD' },
-  { id: 'support', name: 'Support', passwordEnv: 'CHAT_SUPPORT_PASSWORD' },
+  { id: 'tanjona', name: 'Tanjona', passwordEnv: 'CHAT_TANJONA_PASSWORD' },
+  { id: 'nadia', name: 'Nadia', passwordEnv: 'CHAT_NADIA_PASSWORD' },
 ];
 
 function makeUserId(name) {
