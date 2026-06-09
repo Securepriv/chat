@@ -13,9 +13,16 @@ import {
   Window,
 } from 'stream-chat-react';
 
+const PRIVATE_USERS = [
+  { id: 'client', name: 'Client' },
+  { id: 'support', name: 'Support' },
+];
+
 export default function ChatClient() {
-  const [name, setName] = useState('');
-  const [loginName, setLoginName] = useState('');
+  const [name, setName] = useState('client');
+  const [password, setPassword] = useState('');
+  const [loginData, setLoginData] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [client, setClient] = useState(null);
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -25,17 +32,28 @@ export default function ChatClient() {
     event.preventDefault();
     setError('');
 
-    const cleanedName = name.trim();
+    const cleanedName = String(name || '').trim().toLowerCase();
     if (!cleanedName) {
-      setError('Entrez votre nom pour rejoindre le tchat.');
+      setError('Choisissez Client ou Support.');
       return;
     }
 
-    setLoginName(cleanedName);
+    if (!password) {
+      setError('Entrez le mot de passe.');
+      return;
+    }
+
+    setLoginData({ name: cleanedName, password });
+  }
+
+  function selectUser(userId) {
+    setError('');
+    setName(userId);
+    setPassword('');
   }
 
   useEffect(() => {
-    if (!loginName) return;
+    if (!loginData) return;
 
     let cancelled = false;
     let chatClient;
@@ -46,11 +64,12 @@ export default function ChatClient() {
         setError('');
         setClient(null);
         setChannel(null);
+        setCurrentUser(null);
 
         const response = await fetch('/api/token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: loginName }),
+          body: JSON.stringify(loginData),
         });
 
         const data = await response.json();
@@ -61,10 +80,11 @@ export default function ChatClient() {
         chatClient = new StreamChat(data.apiKey);
         await chatClient.connectUser(data.user, data.token);
 
-        const chatChannel = chatClient.channel('messaging', data.channelId);
+        const chatChannel = chatClient.channel(data.channelType || 'messaging', data.channelId);
         await chatChannel.watch();
 
         if (!cancelled) {
+          setCurrentUser(data.user);
           setClient(chatClient);
           setChannel(chatChannel);
         }
@@ -81,37 +101,68 @@ export default function ChatClient() {
       cancelled = true;
       if (chatClient) chatClient.disconnectUser();
     };
-  }, [loginName]);
+  }, [loginData]);
 
   function leaveChat() {
     if (client) client.disconnectUser();
     setClient(null);
     setChannel(null);
-    setLoginName('');
+    setCurrentUser(null);
+    setLoginData(null);
+    setPassword('');
   }
 
   if (!client || !channel) {
     return (
       <main className="page">
         <section className="card login-card">
-          <div className="logo">💬</div>
-          <h1>Tchat en direct</h1>
+          <div className="logo">🔒</div>
+          <h1>Tchat privé</h1>
           <p className="subtitle">
-            Application Next.js hébergée sur Vercel avec GetStream Chat.
+            Conversation privée GetStream entre seulement deux utilisateurs protégés par mot de passe.
           </p>
 
+          <div className="quick-users">
+            {PRIVATE_USERS.map((user) => (
+              <button
+                className={name === user.id ? 'selected' : ''}
+                key={user.id}
+                disabled={loading}
+                type="button"
+                onClick={() => selectUser(user.id)}
+              >
+                Je suis {user.name}
+              </button>
+            ))}
+          </div>
+
           <form onSubmit={submit} className="login-form">
-            <label htmlFor="name">Votre nom</label>
-            <input
+            <label htmlFor="name">Utilisateur</label>
+            <select
               id="name"
               value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Ex: Amine"
-              maxLength={60}
-              autoComplete="name"
+              onChange={(event) => selectUser(event.target.value)}
+              disabled={loading}
+            >
+              {PRIVATE_USERS.map((user) => (
+                <option key={user.id} value={user.id}>
+                  {user.name}
+                </option>
+              ))}
+            </select>
+
+            <label htmlFor="password">Mot de passe</label>
+            <input
+              id="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Entrez le mot de passe"
+              type="password"
+              autoComplete="current-password"
             />
+
             <button disabled={loading} type="submit">
-              {loading ? 'Connexion...' : 'Rejoindre le salon'}
+              {loading ? 'Connexion...' : 'Rejoindre le tchat privé'}
             </button>
           </form>
 
@@ -123,7 +174,7 @@ export default function ChatClient() {
           {error && <p className="error">{error}</p>}
 
           <p className="hint">
-            Démo simple: tous les utilisateurs rejoignent le salon “général”.
+            Pour tester: ouvrez cette page deux fois. Une fois comme Client, une fois comme Support.
           </p>
         </section>
       </main>
@@ -134,8 +185,8 @@ export default function ChatClient() {
     <main className="chat-page">
       <div className="topbar">
         <div>
-          <strong>Tchat GetStream</strong>
-          <span>Salon général</span>
+          <strong>Conversation privée</strong>
+          <span>Connecté comme {currentUser?.name || loginData?.name}</span>
         </div>
         <button onClick={leaveChat}>Quitter</button>
       </div>
