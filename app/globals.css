@@ -22,7 +22,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -68,25 +69,72 @@ h1 {
   line-height: 1.5;
 }
 
+.quick-users {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.quick-users button {
+  border: 0;
+  border-radius: 16px;
+  padding: 16px;
+  background: #0f172a;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.quick-users button:hover,
+.quick-users button.selected {
+  background: var(--primary);
+}
+
+.quick-users button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.separator {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.separator::before,
+.separator::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: #cbd5e1;
+}
+
 .login-form {
   display: grid;
   gap: 10px;
-  margin-top: 26px;
+  margin-top: 18px;
 }
 
 .login-form label {
   font-weight: 700;
 }
 
-.login-form input {
+.login-form input,
+.login-form select {
   width: 100%;
   border: 1px solid #cbd5e1;
   border-radius: 14px;
   padding: 14px 16px;
   outline: none;
+  background: white;
 }
 
-.login-form input:focus {
+.login-form input:focus,
+.login-form select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
 }
