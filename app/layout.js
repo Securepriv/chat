@@ -1,5 +1,5 @@
 import './globals.css';
-import 'stream-chat-react/dist/css/v2/index.css';
+import 'stream-chat-react/css/index.css';
 
 export const metadata = {
   title: 'Tchat GetStream + Vercel',
