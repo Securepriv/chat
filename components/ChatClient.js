@@ -7,7 +7,7 @@ import {
   Channel,
   ChannelHeader,
   LoadingIndicator,
-  MessageInput,
+  MessageComposer,
   MessageList,
   Thread,
   Window,
@@ -146,7 +146,7 @@ export default function ChatClient() {
             <Window>
               <ChannelHeader />
               <MessageList />
-              <MessageInput focus />
+              <MessageComposer focus />
             </Window>
             <Thread />
           </Channel>
