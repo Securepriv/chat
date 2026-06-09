@@ -14,8 +14,8 @@ import {
 } from 'stream-chat-react';
 
 const PRIVATE_USERS = [
-  { id: 'client', name: 'Client' },
-  { id: 'support', name: 'Support' },
+  { id: 'tanjona', name: 'Tanjona' },
+  { id: 'nadia', name: 'Nadia' },
 ];
 
 export default function ChatClient() {
