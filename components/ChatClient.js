@@ -13,13 +13,8 @@ import {
   Window,
 } from 'stream-chat-react';
 
-const PRIVATE_USERS = [
-  { id: 'tanjona', name: 'Tanjona' },
-  { id: 'nadia', name: 'Nadia' },
-];
-
 export default function ChatClient() {
-  const [name, setName] = useState('client');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [loginData, setLoginData] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
@@ -34,22 +29,16 @@ export default function ChatClient() {
 
     const cleanedName = String(name || '').trim().toLowerCase();
     if (!cleanedName) {
-      setError('Choisissez Client ou Support.');
+      setError("Entrez votre nom d'utilisateur.");
       return;
     }
 
     if (!password) {
-      setError('Entrez le mot de passe.');
+      setError('Entrez votre mot de passe.');
       return;
     }
 
     setLoginData({ name: cleanedName, password });
-  }
-
-  function selectUser(userId) {
-    setError('');
-    setName(userId);
-    setPassword('');
   }
 
   useEffect(() => {
@@ -117,52 +106,36 @@ export default function ChatClient() {
       <main className="page">
         <section className="card login-card">
           <div className="logo">🔒</div>
-          <h1>Tchat privé</h1>
+          <h1>Connexion</h1>
           <p className="subtitle">
-            Conversation privée GetStream entre seulement deux utilisateurs protégés par mot de passe.
+            Connectez-vous pour accéder à votre conversation privée.
           </p>
 
-          <div className="quick-users">
-            {PRIVATE_USERS.map((user) => (
-              <button
-                className={name === user.id ? 'selected' : ''}
-                key={user.id}
-                disabled={loading}
-                type="button"
-                onClick={() => selectUser(user.id)}
-              >
-                Je suis {user.name}
-              </button>
-            ))}
-          </div>
-
           <form onSubmit={submit} className="login-form">
-            <label htmlFor="name">Utilisateur</label>
-            <select
-              id="name"
+            <label htmlFor="username">Nom d'utilisateur</label>
+            <input
+              id="username"
               value={name}
-              onChange={(event) => selectUser(event.target.value)}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="Entrez votre nom d'utilisateur"
+              maxLength={60}
+              autoComplete="username"
               disabled={loading}
-            >
-              {PRIVATE_USERS.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
-                </option>
-              ))}
-            </select>
+            />
 
             <label htmlFor="password">Mot de passe</label>
             <input
               id="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Entrez le mot de passe"
+              placeholder="Entrez votre mot de passe"
               type="password"
               autoComplete="current-password"
+              disabled={loading}
             />
 
             <button disabled={loading} type="submit">
-              {loading ? 'Connexion...' : 'Rejoindre le tchat privé'}
+              {loading ? 'Connexion...' : 'Se connecter'}
             </button>
           </form>
 
@@ -172,10 +145,6 @@ export default function ChatClient() {
             </div>
           )}
           {error && <p className="error">{error}</p>}
-
-          <p className="hint">
-            Pour tester: ouvrez cette page deux fois. Une fois comme Client, une fois comme Support.
-          </p>
         </section>
       </main>
     );
