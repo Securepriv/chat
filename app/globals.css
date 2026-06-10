@@ -222,3 +222,24 @@ h1 {
 .str-chat__channel {
   width: 100%;
 }
+
+.checkbox-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.checkbox-line input {
+  width: 18px;
+  height: 18px;
+}
+
+.success {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #bbf7d0;
+  padding: 12px 14px;
+  border-radius: 14px;
+}
