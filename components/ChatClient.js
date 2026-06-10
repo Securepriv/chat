@@ -13,10 +13,12 @@ import {
   Window,
 } from 'stream-chat-react';
 
+const SESSION_STORAGE_KEY = 'private-chat-session';
+
 export default function ChatClient() {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
-  const [loginData, setLoginData] = useState(null);
+  const [authData, setAuthData] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [client, setClient] = useState(null);
   const [channel, setChannel] = useState(null);
@@ -28,6 +30,18 @@ export default function ChatClient() {
     const savedTheme = window.localStorage.getItem('chat-theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setDarkMode(savedTheme ? savedTheme === 'dark' : prefersDark);
+
+    const savedSession = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    if (savedSession) {
+      try {
+        const session = JSON.parse(savedSession);
+        if (session?.apiKey && session?.token && session?.user && session?.channelId) {
+          setAuthData({ type: 'session', session });
+        }
+      } catch (error) {
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+      }
+    }
   }, []);
 
   function toggleDarkMode() {
@@ -53,11 +67,11 @@ export default function ChatClient() {
       return;
     }
 
-    setLoginData({ name: cleanedName, password });
+    setAuthData({ type: 'password', name: cleanedName, password });
   }
 
   useEffect(() => {
-    if (!loginData) return;
+    if (!authData) return;
 
     let cancelled = false;
     let chatClient;
@@ -70,30 +84,52 @@ export default function ChatClient() {
         setChannel(null);
         setCurrentUser(null);
 
-        const response = await fetch('/api/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(loginData),
-        });
+        let session;
 
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.error || 'Impossible de récupérer le token GetStream.');
+        if (authData.type === 'session') {
+          session = authData.session;
+        } else {
+          const response = await fetch('/api/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: authData.name, password: authData.password }),
+          });
+
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || 'Impossible de récupérer le token GetStream.');
+          }
+
+          session = {
+            apiKey: data.apiKey,
+            token: data.token,
+            channelId: data.channelId,
+            channelType: data.channelType || 'messaging',
+            user: data.user,
+          };
+
+          window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
         }
 
-        chatClient = new StreamChat(data.apiKey);
-        await chatClient.connectUser(data.user, data.token);
+        chatClient = new StreamChat(session.apiKey);
+        await chatClient.connectUser(session.user, session.token);
 
-        const chatChannel = chatClient.channel(data.channelType || 'messaging', data.channelId);
+        const chatChannel = chatClient.channel(session.channelType || 'messaging', session.channelId);
         await chatChannel.watch();
 
         if (!cancelled) {
-          setCurrentUser(data.user);
+          setCurrentUser(session.user);
           setClient(chatClient);
           setChannel(chatChannel);
+          setName(session.user?.id || '');
         }
       } catch (err) {
-        if (!cancelled) setError(err.message || 'Erreur de connexion.');
+        window.localStorage.removeItem(SESSION_STORAGE_KEY);
+        if (!cancelled) {
+          setAuthData(null);
+          setPassword('');
+          setError(err.message || 'Erreur de connexion. Reconnectez-vous.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -105,14 +141,15 @@ export default function ChatClient() {
       cancelled = true;
       if (chatClient) chatClient.disconnectUser();
     };
-  }, [loginData]);
+  }, [authData]);
 
   function leaveChat() {
+    window.localStorage.removeItem(SESSION_STORAGE_KEY);
     if (client) client.disconnectUser();
     setClient(null);
     setChannel(null);
     setCurrentUser(null);
-    setLoginData(null);
+    setAuthData(null);
     setPassword('');
   }
 
@@ -174,7 +211,7 @@ export default function ChatClient() {
       <div className="topbar">
         <div>
           <strong>Conversation privée</strong>
-          <span>Connecté comme {currentUser?.name || loginData?.name}</span>
+          <span>Connecté comme {currentUser?.name || currentUser?.id}</span>
         </div>
 
         <div className="topbar-actions">
