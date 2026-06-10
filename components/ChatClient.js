@@ -22,6 +22,21 @@ export default function ChatClient() {
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    const savedTheme = window.localStorage.getItem('chat-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    setDarkMode(savedTheme ? savedTheme === 'dark' : prefersDark);
+  }, []);
+
+  function toggleDarkMode() {
+    setDarkMode((currentValue) => {
+      const nextValue = !currentValue;
+      window.localStorage.setItem('chat-theme', nextValue ? 'dark' : 'light');
+      return nextValue;
+    });
+  }
 
   async function submit(event) {
     event.preventDefault();
@@ -103,8 +118,12 @@ export default function ChatClient() {
 
   if (!client || !channel) {
     return (
-      <main className="page">
+      <main className={`page ${darkMode ? 'dark-mode' : 'light-mode'}`}>
         <section className="card login-card">
+          <button className="theme-toggle login-theme-toggle" onClick={toggleDarkMode} type="button">
+            {darkMode ? '☀️ Mode clair' : '🌙 Mode sombre'}
+          </button>
+
           <div className="logo">🔒</div>
           <h1>Connexion</h1>
           <p className="subtitle">
@@ -151,17 +170,23 @@ export default function ChatClient() {
   }
 
   return (
-    <main className="chat-page">
+    <main className={`chat-page ${darkMode ? 'dark-mode' : 'light-mode'}`}>
       <div className="topbar">
         <div>
           <strong>Conversation privée</strong>
           <span>Connecté comme {currentUser?.name || loginData?.name}</span>
         </div>
-        <button onClick={leaveChat}>Quitter</button>
+
+        <div className="topbar-actions">
+          <button className="theme-toggle" onClick={toggleDarkMode} type="button">
+            {darkMode ? '☀️ Clair' : '🌙 Sombre'}
+          </button>
+          <button onClick={leaveChat} type="button">Quitter</button>
+        </div>
       </div>
 
       <div className="chat-shell">
-        <Chat client={client} theme="str-chat__theme-light">
+        <Chat client={client} theme={darkMode ? 'str-chat__theme-dark' : 'str-chat__theme-light'}>
           <Channel channel={channel}>
             <Window>
               <ChannelHeader />
