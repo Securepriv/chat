@@ -15,11 +15,50 @@ import {
 
 const SESSION_STORAGE_KEY = 'private-chat-session';
 
+function LogoutIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      fill="none"
+      height="22"
+      viewBox="0 0 24 24"
+      width="22"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M10 7V5.8C10 4.81 10 4.31 10.19 3.93C10.36 3.6 10.63 3.33 10.96 3.16C11.34 2.97 11.84 2.97 12.83 2.97H17.2C18.88 2.97 19.72 2.97 20.36 3.3C20.92 3.58 21.38 4.04 21.67 4.61C22 5.25 22 6.09 22 7.77V16.2C22 17.88 22 18.72 21.67 19.36C21.38 19.92 20.92 20.38 20.36 20.67C19.72 21 18.88 21 17.2 21H12.8C11.81 21 11.31 21 10.93 20.81C10.6 20.64 10.33 20.37 10.16 20.04C9.97 19.66 9.97 19.16 9.97 18.17V17"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+      <path
+        d="M15 12H2M2 12L6 8M2 12L6 16"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+      />
+    </svg>
+  );
+}
+
+function getInitials(name) {
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return '?';
+  return cleanName
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join('');
+}
+
 export default function ChatClient() {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [authData, setAuthData] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [privateUsers, setPrivateUsers] = useState([]);
   const [client, setClient] = useState(null);
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -105,6 +144,7 @@ export default function ChatClient() {
             token: data.token,
             channelId: data.channelId,
             channelType: data.channelType || 'messaging',
+            privateUsers: data.privateUsers || [],
             user: data.user,
           };
 
@@ -119,6 +159,7 @@ export default function ChatClient() {
 
         if (!cancelled) {
           setCurrentUser(session.user);
+          setPrivateUsers(session.privateUsers || []);
           setClient(chatClient);
           setChannel(chatChannel);
           setName(session.user?.id || '');
@@ -149,9 +190,16 @@ export default function ChatClient() {
     setClient(null);
     setChannel(null);
     setCurrentUser(null);
+    setPrivateUsers([]);
     setAuthData(null);
     setPassword('');
   }
+
+  const currentUserName = currentUser?.name || currentUser?.id || 'Utilisateur';
+  const otherUsers = privateUsers.filter((user) => user.id !== currentUser?.id);
+  const participantsText = privateUsers.length
+    ? privateUsers.map((user) => user.name || user.id).join(' · ')
+    : 'Conversation privée';
 
   if (!client || !channel) {
     return (
@@ -207,33 +255,81 @@ export default function ChatClient() {
   }
 
   return (
-    <main className={`chat-page ${darkMode ? 'dark-mode' : 'light-mode'}`}>
-      <div className="topbar">
-        <div>
-          <strong>Conversation privée</strong>
-          <span>Connecté comme {currentUser?.name || currentUser?.id}</span>
+    <main className={`chat-page messenger-page ${darkMode ? 'dark-mode' : 'light-mode'}`}>
+      <aside className="chat-sidebar">
+        <div className="sidebar-title">Messagerie</div>
+
+        <div className="profile-card">
+          <div className="avatar large-avatar">{getInitials(currentUserName)}</div>
+          <div>
+            <strong>{currentUserName}</strong>
+            <span>En ligne</span>
+          </div>
         </div>
 
-        <div className="topbar-actions">
-          <button className="theme-toggle" onClick={toggleDarkMode} type="button">
-            {darkMode ? '☀️ Clair' : '🌙 Sombre'}
+        <div className="conversation-list">
+          <p className="section-label">Conversation</p>
+          <button className="conversation-item active" type="button">
+            <div className="avatar conversation-avatar">💬</div>
+            <div>
+              <strong>Conversation privée</strong>
+              <span>{participantsText}</span>
+            </div>
           </button>
-          <button onClick={leaveChat} type="button">Quitter</button>
         </div>
-      </div>
 
-      <div className="chat-shell">
-        <Chat client={client} theme={darkMode ? 'str-chat__theme-dark' : 'str-chat__theme-light'}>
-          <Channel channel={channel}>
-            <Window>
-              <ChannelHeader />
-              <MessageList />
-              <MessageComposer focus />
-            </Window>
-            <Thread />
-          </Channel>
-        </Chat>
-      </div>
+        {otherUsers.length > 0 && (
+          <div className="conversation-list participants-list">
+            <p className="section-label">Participant</p>
+            {otherUsers.map((user) => (
+              <div className="participant-item" key={user.id}>
+                <div className="avatar small-avatar">{getInitials(user.name || user.id)}</div>
+                <div>
+                  <strong>{user.name || user.id}</strong>
+                  <span>Conversation privée</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </aside>
+
+      <section className="conversation-panel">
+        <div className="topbar conversation-topbar">
+          <div>
+            <strong>Conversation privée</strong>
+            <span>{participantsText}</span>
+          </div>
+
+          <div className="topbar-actions">
+            <button className="theme-toggle" onClick={toggleDarkMode} type="button">
+              {darkMode ? '☀️ Clair' : '🌙 Sombre'}
+            </button>
+            <button
+              aria-label="Déconnexion"
+              className="logout-icon-button"
+              onClick={leaveChat}
+              title="Déconnexion"
+              type="button"
+            >
+              <LogoutIcon />
+            </button>
+          </div>
+        </div>
+
+        <div className="chat-shell messenger-chat-shell">
+          <Chat client={client} theme={darkMode ? 'str-chat__theme-dark' : 'str-chat__theme-light'}>
+            <Channel channel={channel}>
+              <Window>
+                <ChannelHeader />
+                <MessageList />
+                <MessageComposer focus />
+              </Window>
+              <Thread />
+            </Channel>
+          </Chat>
+        </div>
+      </section>
     </main>
   );
 }
