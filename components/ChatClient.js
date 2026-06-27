@@ -14,6 +14,7 @@ import {
 } from 'stream-chat-react';
 
 const SESSION_STORAGE_KEY = 'private-chat-session';
+const OFFLINE_MESSAGES_KEY = 'private-chat-offline-messages';
 const QUICK_EMOJIS = ['😀', '😂', '😍', '🥰', '😊', '😎', '😢', '😡', '👍', '🙏', '👏', '🔥', '❤️', '💔', '🎉', '✅', '❌', '💯', '🤔', '😴', '😭', '😘', '🙌', '✨'];
 
 function LogoutIcon() {
@@ -87,6 +88,21 @@ function getMessagePreview(message) {
   return 'Nouveau message';
 }
 
+function sanitizeMessagesForOffline(messages = []) {
+  return messages
+    .slice(-30)
+    .map((message) => ({
+      id: message.id,
+      text: getMessagePreview(message),
+      created_at: message.created_at,
+      user: {
+        id: message.user?.id,
+        name: message.user?.name || message.user?.id || 'Utilisateur',
+      },
+    }))
+    .filter((message) => message.id);
+}
+
 function playNotificationSound() {
   try {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
@@ -125,6 +141,44 @@ function urlBase64ToUint8Array(base64String) {
   return outputArray;
 }
 
+async function compressImageFile(file, maxSize = 1600, quality = 0.78) {
+  if (!file?.type?.startsWith('image/') || file.type === 'image/gif' || file.size < 450 * 1024) {
+    return file;
+  }
+
+  const imageUrl = URL.createObjectURL(file);
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = imageUrl;
+    });
+
+    const ratio = Math.min(1, maxSize / Math.max(image.width, image.height));
+    const width = Math.round(image.width * ratio);
+    const height = Math.round(image.height * ratio);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (!blob || blob.size >= file.size) return file;
+
+    return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+      type: 'image/jpeg',
+      lastModified: Date.now(),
+    });
+  } finally {
+    URL.revokeObjectURL(imageUrl);
+  }
+}
+
 export default function ChatClient() {
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -141,6 +195,11 @@ export default function ChatClient() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationToast, setNotificationToast] = useState(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [showLanding, setShowLanding] = useState(true);
+  const [offlineMessages, setOfflineMessages] = useState([]);
   const [client, setClient] = useState(null);
   const [channel, setChannel] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -151,10 +210,25 @@ export default function ChatClient() {
 
   useEffect(() => {
     originalTitleRef.current = document.title || 'Tchat GetStream';
+    setIsOnline(navigator.onLine);
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true);
+
+    const cachedMessages = window.localStorage.getItem(OFFLINE_MESSAGES_KEY);
+    if (cachedMessages) {
+      try {
+        setOfflineMessages(JSON.parse(cachedMessages));
+      } catch (error) {
+        window.localStorage.removeItem(OFFLINE_MESSAGES_KEY);
+      }
+    }
 
     const savedTheme = window.localStorage.getItem('chat-theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     setDarkMode(savedTheme ? savedTheme === 'dark' : prefersDark);
+
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(() => null);
+    }
 
     if ('Notification' in window && Notification.permission === 'granted') {
       setNotificationsEnabled(true);
@@ -174,6 +248,35 @@ export default function ChatClient() {
   }, []);
 
   useEffect(() => {
+    function updateOnlineStatus() {
+      setIsOnline(navigator.onLine);
+    }
+
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setInstallPrompt(event);
+    }
+
+    function handleAppInstalled() {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+      setActionMessage('Application installée.');
+    }
+
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+
+    return () => {
+      window.removeEventListener('online', updateOnlineStatus);
+      window.removeEventListener('offline', updateOnlineStatus);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
+  }, []);
+
+  useEffect(() => {
     const mediaQuery = window.matchMedia('(max-width: 760px)');
     const updateMobileMode = () => setIsMobile(mediaQuery.matches);
 
@@ -181,6 +284,40 @@ export default function ChatClient() {
     mediaQuery.addEventListener('change', updateMobileMode);
 
     return () => mediaQuery.removeEventListener('change', updateMobileMode);
+  }, []);
+
+  useEffect(() => {
+    function interceptImageUploads(event) {
+      const input = event.target;
+      if (!(input instanceof HTMLInputElement) || input.type !== 'file' || !input.files?.length) return;
+      if (input.dataset.compressed === 'true') {
+        delete input.dataset.compressed;
+        return;
+      }
+
+      const files = Array.from(input.files);
+      if (!files.some((file) => file.type.startsWith('image/') && file.type !== 'image/gif' && file.size >= 450 * 1024)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      Promise.all(files.map((file) => compressImageFile(file)))
+        .then((compressedFiles) => {
+          const dataTransfer = new DataTransfer();
+          compressedFiles.forEach((file) => dataTransfer.items.add(file));
+          input.files = dataTransfer.files;
+          input.dataset.compressed = 'true';
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          setActionMessage('Image compressée avant envoi.');
+        })
+        .catch(() => {
+          input.dataset.compressed = 'true';
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+    }
+
+    document.addEventListener('change', interceptImageUploads, true);
+    return () => document.removeEventListener('change', interceptImageUploads, true);
   }, []);
 
   useEffect(() => {
@@ -197,6 +334,27 @@ export default function ChatClient() {
     document.addEventListener('visibilitychange', resetTitleWhenVisible);
     return () => document.removeEventListener('visibilitychange', resetTitleWhenVisible);
   }, [channel]);
+
+  async function installApp() {
+    if (!installPrompt) {
+      setActionMessage('Sur Android Chrome: menu ⋮ puis Ajouter à l’écran d’accueil.');
+      return;
+    }
+
+    installPrompt.prompt();
+    const result = await installPrompt.userChoice.catch(() => null);
+    if (result?.outcome === 'accepted') {
+      setInstallPrompt(null);
+      setIsStandalone(true);
+      setActionMessage('Application installée.');
+    }
+  }
+
+  function cacheRecentMessages(chatChannel) {
+    const messages = sanitizeMessagesForOffline(chatChannel?.state?.messages || []);
+    setOfflineMessages(messages);
+    window.localStorage.setItem(OFFLINE_MESSAGES_KEY, JSON.stringify(messages));
+  }
 
   function toggleDarkMode() {
     setDarkMode((currentValue) => {
@@ -351,6 +509,7 @@ export default function ChatClient() {
 
     try {
       setUnreadCount(chatChannel.countUnread ? chatChannel.countUnread() : 0);
+      cacheRecentMessages(chatChannel);
     } catch (error) {
       setUnreadCount(0);
     }
@@ -414,6 +573,7 @@ export default function ChatClient() {
         const usableUsers = session.privateUsers?.length ? session.privateUsers : channelUsers;
 
         if (!cancelled) {
+          setShowLanding(false);
           setCurrentUser(session.user);
           setPrivateUsers(usableUsers);
           setClient(chatClient);
@@ -587,6 +747,7 @@ export default function ChatClient() {
     setActionMessage('');
     setNotificationToast(null);
     setEmojiOpen(false);
+    setShowLanding(false);
     setAuthData(null);
     setPassword('');
   }
@@ -600,6 +761,41 @@ export default function ChatClient() {
   const primaryOtherStatus = primaryOtherUser ? membersStatus[primaryOtherUser.id] : null;
   const recipientName = primaryOtherUser?.name || primaryOtherUser?.id || 'Conversation privée';
   const recipientStatus = primaryOtherUser ? formatPresence(primaryOtherStatus || primaryOtherUser) : participantsText;
+
+  if (!client && !channel && showLanding && !authData && !loading) {
+    return (
+      <main className={`page landing-page ${darkMode ? 'dark-mode' : 'light-mode'}`}>
+        <section className="card landing-card">
+          <button className="theme-toggle login-theme-toggle" onClick={toggleDarkMode} type="button">
+            {darkMode ? '☀️ Mode clair' : '🌙 Mode sombre'}
+          </button>
+
+          <div className="logo">💬</div>
+          <h1>Tchat privé sécurisé</h1>
+          <p className="subtitle">
+            Discutez en privé avec notifications Android, mode sombre, recherche, pièces jointes et emojis.
+          </p>
+
+          <div className="landing-actions">
+            <button onClick={() => setShowLanding(false)} type="button">Se connecter</button>
+            {!isStandalone && (
+              <button className="secondary-button" onClick={installApp} type="button">Installer l’application</button>
+            )}
+            <a className="settings-link" href="/settings">Paramètres</a>
+          </div>
+
+          <div className="feature-grid">
+            <span>🔔 Notifications</span>
+            <span>📎 Fichiers</span>
+            <span>😊 Emojis</span>
+            <span>🌙 Mode sombre</span>
+          </div>
+
+          {actionMessage && <p className="sidebar-action-message">{actionMessage}</p>}
+        </section>
+      </main>
+    );
+  }
 
   if (!client || !channel) {
     return (
@@ -661,6 +857,12 @@ export default function ChatClient() {
         </div>
       )}
 
+      {!isOnline && (
+        <div className="offline-banner">
+          Connexion perdue — affichage hors ligne, reconnexion automatique dès que le réseau revient.
+        </div>
+      )}
+
       <aside className="chat-sidebar">
         <div className="sidebar-title">Messagerie</div>
 
@@ -704,6 +906,17 @@ export default function ChatClient() {
             >
               <BellIcon />
             </button>
+            {!isStandalone && (
+              <button
+                className="install-button"
+                onClick={installApp}
+                title="Installer l’application Android"
+                type="button"
+              >
+                <span className="desktop-theme-label">Installer</span>
+                <span className="mobile-theme-label">⬇️</span>
+              </button>
+            )}
             <button
               aria-label="Effacer la conversation"
               className="clear-icon-button"
@@ -754,6 +967,18 @@ export default function ChatClient() {
                 <strong>{message.user?.name || message.user?.id || 'Utilisateur'}</strong>
                 <span>{getMessagePreview(message)}</span>
                 <small>{formatShortDate(message.created_at)}</small>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!isOnline && offlineMessages.length > 0 && (
+          <div className="offline-cache-panel">
+            <strong>Derniers messages enregistrés</strong>
+            {offlineMessages.slice(-6).map((message) => (
+              <div className="offline-cache-item" key={message.id}>
+                <span>{message.user?.name || 'Utilisateur'}</span>
+                <p>{message.text}</p>
               </div>
             ))}
           </div>
