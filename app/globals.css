@@ -1593,3 +1593,237 @@ h1 {
     padding-left: 88px !important;
   }
 }
+
+/* Présentation, installation PWA, paramètres, offline */
+.landing-card,
+.settings-card {
+  width: min(100%, 620px);
+}
+
+.landing-actions,
+.settings-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.landing-actions button,
+.settings-buttons button,
+.install-button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: var(--primary);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.landing-actions button:hover,
+.settings-buttons button:hover,
+.install-button:hover {
+  background: var(--primary-dark);
+}
+
+.secondary-button,
+.settings-buttons button:not(.selected-setting) {
+  background: #0f172a !important;
+}
+
+.settings-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  padding: 12px 16px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.back-link {
+  margin-top: 16px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.feature-grid span {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+}
+
+.settings-section {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.settings-section h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.settings-section p {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.selected-setting {
+  background: var(--primary) !important;
+}
+
+.install-button {
+  background: #16a34a !important;
+}
+
+.install-button:hover {
+  background: #15803d !important;
+}
+
+.offline-banner {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1100;
+  max-width: calc(100vw - 24px);
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #f97316;
+  color: white;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 12px 40px rgba(249, 115, 22, 0.35);
+}
+
+.offline-cache-panel {
+  flex: 0 0 auto;
+  max-height: 180px;
+  overflow-y: auto;
+  display: grid;
+  gap: 8px;
+  padding: 10px 18px;
+  background: #fff7ed;
+  border-bottom: 1px solid #fed7aa;
+}
+
+.offline-cache-panel > strong {
+  color: #9a3412;
+  font-size: 13px;
+}
+
+.offline-cache-item {
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: white;
+}
+
+.offline-cache-item span {
+  display: block;
+  color: #9a3412;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.offline-cache-item p {
+  margin: 3px 0 0;
+  color: #431407;
+  font-size: 13px;
+}
+
+.dark-mode .feature-grid span,
+.dark-mode .settings-link {
+  background: #111827;
+  color: #e2e8f0;
+}
+
+.dark-mode .settings-section {
+  border-top-color: #1e293b;
+}
+
+.dark-mode .settings-section p {
+  color: #94a3b8;
+}
+
+.dark-mode .offline-cache-panel {
+  background: #431407;
+  border-bottom-color: #7c2d12;
+}
+
+.dark-mode .offline-cache-panel > strong,
+.dark-mode .offline-cache-item span {
+  color: #fdba74;
+}
+
+.dark-mode .offline-cache-item {
+  background: #111827;
+}
+
+.dark-mode .offline-cache-item p {
+  color: #ffedd5;
+}
+
+/* Position finale emoji: après le texte, avant le bouton envoyer; le + fichier reste à gauche */
+.emoji-tools {
+  left: auto !important;
+  right: 82px !important;
+  bottom: 22px !important;
+  justify-items: end !important;
+  z-index: 55;
+}
+
+.messenger-chat-shell textarea,
+.messenger-chat-shell .str-chat__textarea textarea {
+  padding-left: 14px !important;
+  padding-right: 62px !important;
+}
+
+.emoji-panel {
+  transform-origin: bottom right;
+}
+
+@media (max-width: 760px) {
+  .landing-actions,
+  .settings-buttons {
+    display: grid;
+  }
+
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .offline-banner {
+    top: 8px;
+    font-size: 12px;
+    border-radius: 14px;
+    text-align: center;
+  }
+
+  .offline-cache-panel {
+    max-height: 140px;
+    padding: 8px 10px;
+  }
+
+  .emoji-tools {
+    left: auto !important;
+    right: 62px !important;
+    bottom: 18px !important;
+  }
+
+  .messenger-chat-shell textarea,
+  .messenger-chat-shell .str-chat__textarea textarea {
+    padding-left: 12px !important;
+    padding-right: 52px !important;
+  }
+}
