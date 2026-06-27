@@ -867,14 +867,6 @@ export default function ChatClient() {
       <aside className="chat-sidebar">
         <div className="sidebar-title">Messagerie</div>
 
-        <div className="profile-card">
-          <div className="avatar large-avatar">{getInitials(currentUserName)}</div>
-          <div>
-            <strong>{currentUserName}</strong>
-            <span><span className="status-dot online" /> Connecté</span>
-          </div>
-        </div>
-
         <div className="conversation-list">
           <p className="section-label">Conversation</p>
           <button className="conversation-item active" type="button">
@@ -892,9 +884,12 @@ export default function ChatClient() {
 
       <section className="conversation-panel">
         <div className="topbar conversation-actions-bar">
-          <div>
-            <strong>Conversation</strong>
-            <span>{participantsText}</span>
+          <div className="topbar-recipient">
+            <div className="avatar topbar-recipient-avatar">{getInitials(recipientName)}</div>
+            <div>
+              <strong>{recipientName}</strong>
+              <span><span className={`status-dot ${primaryOtherStatus?.online ? 'online' : 'offline'}`} /> {recipientStatus}</span>
+            </div>
           </div>
 
           <div className="topbar-actions">
@@ -957,14 +952,6 @@ export default function ChatClient() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-
-        <div className="recipient-header">
-          <div className="avatar recipient-avatar">{getInitials(recipientName)}</div>
-          <div>
-            <strong>{recipientName}</strong>
-            <span><span className={`status-dot ${primaryOtherStatus?.online ? 'online' : 'offline'}`} /> {recipientStatus}</span>
           </div>
         </div>
 
