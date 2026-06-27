@@ -1556,3 +1556,40 @@ h1 {
     padding-left: 48px !important;
   }
 }
+
+/* Correction: ne pas cacher le bouton + / pièce jointe de GetStream.
+   Le bouton emoji est placé après le bouton + dans le champ message. */
+.emoji-tools {
+  left: 72px !important;
+  bottom: 22px !important;
+  z-index: 45;
+}
+
+/* On laisse l'espace pour: bouton + + bouton emoji + texte */
+.messenger-chat-shell textarea,
+.messenger-chat-shell .str-chat__textarea textarea {
+  padding-left: 96px !important;
+}
+
+/* On s'assure que les boutons natifs GetStream restent cliquables */
+.messenger-chat-shell .str-chat__message-composer-actions,
+.messenger-chat-shell .str-chat__message-input-tools,
+.messenger-chat-shell .str-chat__file-input-container,
+.messenger-chat-shell .str-chat__attachment-selector,
+.messenger-chat-shell .str-chat__attachment-selector__menu-button,
+.messenger-chat-shell .str-chat__message-input-tools button {
+  position: relative;
+  z-index: 60;
+}
+
+@media (max-width: 760px) {
+  .emoji-tools {
+    left: 58px !important;
+    bottom: 18px !important;
+  }
+
+  .messenger-chat-shell textarea,
+  .messenger-chat-shell .str-chat__textarea textarea {
+    padding-left: 88px !important;
+  }
+}
