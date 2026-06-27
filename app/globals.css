@@ -2047,3 +2047,69 @@ h1 {
     padding-right: 44px !important;
   }
 }
+
+/* Ajustement selon maquette: supprimer les doublons et mettre le destinataire dans la barre du haut */
+.chat-sidebar .profile-card {
+  display: none !important;
+}
+
+.topbar-recipient {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar-recipient-avatar {
+  width: 40px;
+  height: 40px;
+  font-size: 14px;
+}
+
+.topbar-recipient strong,
+.topbar-recipient span {
+  display: block;
+}
+
+.topbar-recipient strong {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-recipient span {
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.dark-mode .topbar-recipient span {
+  color: #94a3b8;
+}
+
+/* L'ancien header destinataire sous la barre est supprimé du JSX; cette règle évite un doublon si cache navigateur */
+.recipient-header {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  .topbar-recipient-avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+
+  .topbar-recipient strong {
+    max-width: 135px;
+    font-size: 14px;
+  }
+
+  .conversation-actions-bar > .topbar-recipient span {
+    display: none;
+  }
+}
