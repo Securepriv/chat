@@ -1492,3 +1492,67 @@ h1 {
     font-size: 20px;
   }
 }
+
+/* Emoji intégré directement dans la zone de saisie du message */
+.emoji-tools {
+  right: auto !important;
+  left: 26px !important;
+  bottom: 22px !important;
+  justify-items: start !important;
+}
+
+.emoji-toggle-button {
+  width: 40px;
+  height: 40px;
+  font-size: 20px;
+  box-shadow: none;
+  background: transparent;
+  color: #475569;
+  border: 1px solid transparent;
+}
+
+.emoji-toggle-button:hover {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* On ajoute un petit espace à gauche dans le composer pour que l'emoji soit dans le champ sans gêner le texte */
+.messenger-chat-shell .str-chat__message-input,
+.messenger-chat-shell .str-chat__message-input-inner,
+.messenger-chat-shell .str-chat__message-composer,
+.messenger-chat-shell .str-chat__message-composer-textarea-container {
+  position: relative;
+}
+
+.messenger-chat-shell textarea,
+.messenger-chat-shell .str-chat__textarea textarea {
+  padding-left: 52px !important;
+}
+
+.dark-mode .emoji-toggle-button {
+  color: #cbd5e1;
+}
+
+.dark-mode .emoji-toggle-button:hover {
+  background: #1e293b;
+  color: #93c5fd;
+}
+
+@media (max-width: 760px) {
+  .emoji-tools {
+    left: 14px !important;
+    right: auto !important;
+    bottom: 18px !important;
+  }
+
+  .emoji-toggle-button {
+    width: 38px;
+    height: 38px;
+    font-size: 19px;
+  }
+
+  .messenger-chat-shell textarea,
+  .messenger-chat-shell .str-chat__textarea textarea {
+    padding-left: 48px !important;
+  }
+}
