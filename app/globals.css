@@ -1389,3 +1389,106 @@ h1 {
     width: calc(100vw - 20px);
   }
 }
+
+/* Bouton emoji pour le champ message */
+.conversation-panel {
+  position: relative;
+}
+
+.emoji-tools {
+  position: absolute;
+  right: 22px;
+  bottom: 86px;
+  z-index: 50;
+  display: grid;
+  justify-items: end;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.emoji-toggle-button,
+.emoji-panel button {
+  pointer-events: auto;
+}
+
+.emoji-toggle-button {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #2563eb;
+  color: white;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 14px 35px rgba(37, 99, 235, 0.35);
+}
+
+.emoji-toggle-button:hover {
+  background: #1d4ed8;
+}
+
+.emoji-panel {
+  width: 270px;
+  max-width: calc(100vw - 32px);
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 22px 70px rgba(15, 23, 42, 0.28);
+}
+
+.emoji-panel button {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.emoji-panel button:hover {
+  background: #eff6ff;
+}
+
+.dark-mode .emoji-panel {
+  background: rgba(15, 23, 42, 0.98);
+  border-color: #334155;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+}
+
+.dark-mode .emoji-panel button:hover {
+  background: #1e293b;
+}
+
+@media (max-width: 760px) {
+  .emoji-tools {
+    right: 12px;
+    bottom: 76px;
+  }
+
+  .emoji-toggle-button {
+    width: 42px;
+    height: 42px;
+    font-size: 20px;
+  }
+
+  .emoji-panel {
+    width: 246px;
+    grid-template-columns: repeat(6, 1fr);
+    padding: 10px;
+  }
+
+  .emoji-panel button {
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
+  }
+}
