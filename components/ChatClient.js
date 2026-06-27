@@ -195,6 +195,7 @@ export default function ChatClient() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [notificationToast, setNotificationToast] = useState(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -906,17 +907,6 @@ export default function ChatClient() {
             >
               <BellIcon />
             </button>
-            {!isStandalone && (
-              <button
-                className="install-button"
-                onClick={installApp}
-                title="Installer l’application Android"
-                type="button"
-              >
-                <span className="desktop-theme-label">Installer</span>
-                <span className="mobile-theme-label">⬇️</span>
-              </button>
-            )}
             <button
               aria-label="Effacer la conversation"
               className="clear-icon-button"
@@ -927,13 +917,46 @@ export default function ChatClient() {
             >
               <TrashIcon />
             </button>
-            <button className="theme-toggle" onClick={toggleDarkMode} type="button">
-              <span className="desktop-theme-label">{darkMode ? '☀️ Clair' : '🌙 Sombre'}</span>
-              <span className="mobile-theme-label">{darkMode ? '☀️' : '🌙'}</span>
-            </button>
-            <button aria-label="Déconnexion" className="logout-icon-button" onClick={leaveChat} title="Déconnexion" type="button">
-              <LogoutIcon />
-            </button>
+
+            <div className="profile-menu-wrap">
+              <button
+                aria-label="Ouvrir le profil et les paramètres"
+                className="profile-avatar-button"
+                onClick={() => setProfileMenuOpen((value) => !value)}
+                title="Profil et paramètres"
+                type="button"
+              >
+                {getInitials(currentUserName)}
+              </button>
+
+              {profileMenuOpen && (
+                <div className="profile-dropdown">
+                  <div className="profile-dropdown-header">
+                    <div className="avatar small-avatar">{getInitials(currentUserName)}</div>
+                    <div>
+                      <strong>{currentUserName}</strong>
+                      <span>Connecté</span>
+                    </div>
+                  </div>
+
+                  <button onClick={() => { toggleDarkMode(); setProfileMenuOpen(false); }} type="button">
+                    {darkMode ? '☀️ Mode clair' : '🌙 Mode sombre'}
+                  </button>
+
+                  {!isStandalone && (
+                    <button onClick={() => { installApp(); setProfileMenuOpen(false); }} type="button">
+                      ⬇️ Installer l’application
+                    </button>
+                  )}
+
+                  <a href="/settings" onClick={() => setProfileMenuOpen(false)}>⚙️ Paramètres</a>
+
+                  <button className="profile-logout-button" onClick={leaveChat} type="button">
+                    <LogoutIcon /> Déconnexion
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
